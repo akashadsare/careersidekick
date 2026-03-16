@@ -622,3 +622,119 @@ class SubmissionStatusResponse(BaseModel):
     result_json: dict | None = Field(None, description="TinyFish result JSON with filled fields, screenshots, etc.")
     error_message: str | None
     created_at: datetime
+
+
+# Applications Dashboard Models (M1.8)
+
+
+class StatusCounts(BaseModel):
+    """Count of submissions by status."""
+
+    draft: int = 0
+    approved: int = 0
+    submitted: int = 0
+    failed: int = 0
+
+
+class SubmissionSummaryResponse(BaseModel):
+    """Overview statistics for a candidate's submissions."""
+
+    window_days: int = Field(description="Time window in days")
+    total_drafts: int = Field(description="Total drafts created")
+    by_status: StatusCounts = Field(description="Count by status")
+    avg_fit_score: float = Field(description="Average fit score (0-100)")
+    max_fit_score: int = Field(description="Maximum fit score")
+    submission_completion_rate: float = Field(description="Percentage submitted (0-100)")
+    successful_submissions: int = Field(description="Count of successfully submitted apps")
+
+
+class SubmissionItem(BaseModel):
+    """Single submission in list."""
+
+    draft_id: int
+    candidate_id: int
+    candidate_name: str
+    job_id: int
+    job_title: str
+    company_name: str
+    location: str | None
+    ats_type: str | None
+    fit_score: int
+    draft_status: Literal['draft', 'approved', 'submitted', 'failed']
+    created_at: datetime
+    run_id: int | None
+    run_status: Literal['running', 'completed', 'failed', 'cancelled'] | None
+    run_duration_ms: int | None
+    completed_at: datetime | None
+
+
+class SubmissionListResponse(BaseModel):
+    """Paginated list of submissions."""
+
+    data: list[SubmissionItem]
+    total_count: int
+    limit: int
+    offset: int
+    has_more: bool
+
+
+class SubmissionRunHistory(BaseModel):
+    """Single run in submission history."""
+
+    run_id: int
+    status: Literal['running', 'completed', 'failed', 'cancelled']
+    started_at: datetime | None
+    finished_at: datetime | None
+    duration_ms: int | None
+    error_message: str | None
+    result_json: dict | None
+
+
+class SubmissionDetailResponse(BaseModel):
+    """Detailed view of a single submission."""
+
+    draft_id: int
+    candidate_id: int
+    candidate_name: str
+    candidate_email: str | None
+    job_id: int
+    job_title: str
+    company_name: str
+    job_url: str | None
+    location: str | None
+    ats_type: str | None
+    fit_score: int
+    answers: list[dict] = Field(description="Screening question answers")
+    cover_note: str
+    draft_status: Literal['draft', 'approved', 'submitted', 'failed']
+    created_at: datetime
+    run_history: list[SubmissionRunHistory] = Field(description="All runs for this draft")
+
+
+class CompanyStats(BaseModel):
+    """Statistics for a single company."""
+
+    company_name: str
+    total_applications: int
+    avg_fit_score: float
+    status_distribution: StatusCounts
+
+
+class CompanyStatsResponse(BaseModel):
+    """Company-level breakdown of submissions."""
+
+    data: list[CompanyStats]
+
+
+class TimelineEntry(BaseModel):
+    """Single day in activity timeline."""
+
+    date: str = Field(description="ISO format date (YYYY-MM-DD)")
+    applications_created: int
+
+
+class TimelineResponse(BaseModel):
+    """Timeline of submissions over time."""
+
+    data: list[TimelineEntry]
+    window_days: int = Field(description="Time window in days")

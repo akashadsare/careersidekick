@@ -13,6 +13,7 @@ from .routes.profiles import router as profile_router
 from .routes.discovery import router as discovery_router
 from .routes.fit_scores import router as fit_scores_router
 from .routes.approvals import router as approvals_router
+from .routes.dashboard import router as dashboard_router
 
 app = FastAPI(title='CareerSidekick API', version='0.1.0')
 
@@ -46,3 +47,4 @@ app.include_router(discovery_router, prefix='/api/v1', tags=['discovery'])
 app.include_router(fit_scores_router, prefix='/api/v1', tags=['fit-scores'])
 app.include_router(approvals_router, prefix='/api/v1', tags=['approvals'])
 app.include_router(draft_router, prefix='/api/v1/drafts', tags=['drafts'])
+app.include_router(dashboard_router, prefix='/api/v1', tags=['dashboard'])
