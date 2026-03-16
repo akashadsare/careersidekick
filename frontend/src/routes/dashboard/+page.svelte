@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onDestroy, onMount } from 'svelte';
 
   const API_BASE = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000';
   const DASHBOARD_PREFS_KEY = 'careersidekick_dashboard_prefs';
@@ -30,9 +30,13 @@
   let days = '30';
   let statusFilter: '' | 'running' | 'completed' | 'failed' | 'cancelled' = '';
   let successAlertThreshold = '80';
+  let autoRefreshEnabled = false;
+  let autoRefreshSeconds = '30';
+  let lastUpdatedAt = '';
   let loading = false;
   let error = '';
   let prefsReady = false;
+  let refreshTimer: ReturnType<typeof setInterval> | null = null;
 
   $: parsedSuccessThreshold = Number(successAlertThreshold);
   $: hasValidThreshold = Number.isFinite(parsedSuccessThreshold) && parsedSuccessThreshold >= 0;
@@ -100,6 +104,7 @@
       metrics = await metricsRes.json();
       const runsPayload = await runsRes.json();
       recentRuns = runsPayload.data;
+      lastUpdatedAt = new Date().toLocaleString();
     } catch (e) {
       error = e instanceof Error ? e.message : 'Unknown error';
     } finally {
@@ -117,11 +122,15 @@
         days?: string;
         statusFilter?: '' | 'running' | 'completed' | 'failed' | 'cancelled';
         successAlertThreshold?: string;
+        autoRefreshEnabled?: boolean;
+        autoRefreshSeconds?: string;
       };
 
       if (parsed.days) days = parsed.days;
       if (parsed.statusFilter !== undefined) statusFilter = parsed.statusFilter;
       if (parsed.successAlertThreshold) successAlertThreshold = parsed.successAlertThreshold;
+      if (typeof parsed.autoRefreshEnabled === 'boolean') autoRefreshEnabled = parsed.autoRefreshEnabled;
+      if (parsed.autoRefreshSeconds) autoRefreshSeconds = parsed.autoRefreshSeconds;
     } catch {
       // Ignore malformed local storage values.
     }
@@ -134,16 +143,45 @@
       days,
       statusFilter,
       successAlertThreshold,
+      autoRefreshEnabled,
+      autoRefreshSeconds,
     };
     window.localStorage.setItem(DASHBOARD_PREFS_KEY, JSON.stringify(payload));
   }
 
+  function clearAutoRefreshTimer() {
+    if (refreshTimer !== null) {
+      clearInterval(refreshTimer);
+      refreshTimer = null;
+    }
+  }
+
+  function restartAutoRefreshTimer() {
+    if (typeof window === 'undefined') return;
+
+    clearAutoRefreshTimer();
+
+    if (!autoRefreshEnabled) return;
+
+    const seconds = Number(autoRefreshSeconds);
+    if (!Number.isFinite(seconds) || seconds < 5) return;
+
+    refreshTimer = setInterval(() => {
+      void loadDashboard();
+    }, seconds * 1000);
+  }
+
   $: if (prefsReady) savePrefs();
+  $: if (prefsReady) restartAutoRefreshTimer();
 
   onMount(async () => {
     loadPrefs();
     prefsReady = true;
     await loadDashboard();
+  });
+
+  onDestroy(() => {
+    clearAutoRefreshTimer();
   });
 </script>
 
@@ -172,12 +210,28 @@
         Alert threshold (%)
         <input class="input" bind:value={successAlertThreshold} placeholder="80" />
       </label>
+      <label>
+        <input type="checkbox" bind:checked={autoRefreshEnabled} />
+        Auto refresh
+      </label>
+      <label>
+        Refresh every
+        <select class="select" bind:value={autoRefreshSeconds} disabled={!autoRefreshEnabled}>
+          <option value="15">15s</option>
+          <option value="30">30s</option>
+          <option value="60">60s</option>
+        </select>
+      </label>
       <button class="btn" on:click={loadDashboard} disabled={loading}>
         {loading ? 'Refreshing...' : 'Refresh'}
       </button>
       <a class="btn" href="/live-run">Open Live Run Viewer</a>
     </div>
   </div>
+
+  {#if lastUpdatedAt}
+    <p class="muted">Last updated: {lastUpdatedAt}</p>
+  {/if}
 
   {#if error}
     <p class="error">{error}</p>
@@ -294,6 +348,10 @@
     gap: 8px;
     align-items: end;
     flex-wrap: wrap;
+  }
+
+  .toolbar.compact label input[type='checkbox'] {
+    margin-right: 6px;
   }
 
   .alert {

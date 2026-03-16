@@ -139,7 +139,7 @@ describe('DashboardPage', () => {
     render(DashboardPage);
 
     await screen.findByText('Operations Dashboard');
-    const select = screen.getByRole('combobox');
+    const select = screen.getByRole('combobox', { name: 'Status filter' });
     await fireEvent.change(select, { target: { value: 'failed' } });
 
     const refreshButton = await screen.findByRole('button', { name: 'Refresh' });
@@ -202,6 +202,8 @@ describe('DashboardPage', () => {
         days: '14',
         statusFilter: 'running',
         successAlertThreshold: '90',
+        autoRefreshEnabled: true,
+        autoRefreshSeconds: '15',
       }),
     );
 
@@ -253,6 +255,14 @@ describe('DashboardPage', () => {
     render(DashboardPage);
 
     await screen.findByText('Success rate 50% is below threshold 90%.');
+
+    const autoRefreshCheckbox = screen.getByRole('checkbox');
+    expect(autoRefreshCheckbox).toBeTruthy();
+    expect((autoRefreshCheckbox as HTMLInputElement).checked).toBe(true);
+
+    const selects = screen.getAllByRole('combobox');
+    const intervalSelect = selects[1] as HTMLSelectElement;
+    expect(intervalSelect.value).toBe('15');
 
     const allUrls = fetchMock.mock.calls.map((call) => String(call[0]));
     expect(allUrls.some((url) => url.includes('/api/v1/executions/metrics?days=14'))).toBe(true);
