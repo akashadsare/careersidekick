@@ -1,11 +1,11 @@
 import json
+import os
 from collections import defaultdict
 from datetime import UTC, datetime, timedelta
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Depends
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
-from fastapi import Depends
 
 from ..db import get_db
 from ..db_models import AlertIncident, IncidentState, RunStatus, SubmissionRun
@@ -20,9 +20,13 @@ from ..models import (
     SubmissionRunResponse,
     SubmissionRunStatusUpdateRequest,
     SubmissionRunStatusUpdateResponse,
+    SubmitApplicationRequest,
+    SubmitApplicationResponse,
+    SubmissionStatusResponse,
     TinyFishRunRequest,
 )
 from ..services.tinyfish_client import stream_tinyfish_sse
+from ..services.execution_service import TinyFishExecutionService
 
 router = APIRouter()
 
@@ -205,6 +209,84 @@ def get_execution_metrics(
     window_start = datetime.now(UTC) - timedelta(days=days)
     rows = db.query(SubmissionRun).filter(SubmissionRun.created_at >= window_start).all()
     return _compute_execution_metrics(rows, window_days=days)
+
+
+# M1.7: Submission Execution Endpoints
+
+
+@router.post('/submit', response_model=SubmitApplicationResponse, status_code=202)
+async def submit_application(
+    req: SubmitApplicationRequest,
+    db: Session = Depends(get_db),
+) -> SubmitApplicationResponse:
+    """
+    Submit an approved application via TinyFish browser automation.
+
+    Retrieves approved ApplicationDraft, calls TinyFish API to fill the application form,
+    and stores result in SubmissionRun. Returns immediately with run_id (202 Accepted).
+
+    Args:
+        req: SubmitApplicationRequest with draft_id and optional resume_url
+        db: SQLAlchemy session
+
+    Returns:
+        SubmitApplicationResponse with run_id, status, and error details if any
+
+    Status Codes:
+        202 Accepted - Submission initiated (async processing)
+        404 Not Found - Draft not found
+        422 Unprocessable Entity - Draft not approved or submission error
+    """
+    # Initialize TinyFish service
+    tinyfish_api_key = os.getenv('TINYFISH_API_KEY', '')
+    if not tinyfish_api_key:
+        raise HTTPException(status_code=500, detail='TINYFISH_API_KEY not configured')
+
+    service = TinyFishExecutionService(tinyfish_api_key=tinyfish_api_key)
+
+    try:
+        result = await service.submit_application(
+            approved_draft_id=req.draft_id,
+            db=db,
+            resume_url=req.resume_url,
+        )
+        return SubmitApplicationResponse(**result)
+    except ValueError as e:
+        # Draft not found or not approved
+        if 'not found' in str(e).lower():
+            raise HTTPException(status_code=404, detail=str(e))
+        else:
+            raise HTTPException(status_code=422, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f'Submission initiation failed: {str(e)}')
+
+
+@router.get('/submission-status/{run_id}', response_model=SubmissionStatusResponse)
+async def get_submission_status(run_id: int, db: Session = Depends(get_db)) -> SubmissionStatusResponse:
+    """
+    Get submission run status and result details.
+
+    Args:
+        run_id: SubmissionRun.id
+        db: SQLAlchemy session
+
+    Returns:
+        SubmissionStatusResponse with status, duration, result JSON, and error details
+
+    Status Codes:
+        200 OK - Success
+        404 Not Found - Run not found
+    """
+    tinyfish_api_key = os.getenv('TINYFISH_API_KEY', '')
+    service = TinyFishExecutionService(tinyfish_api_key=tinyfish_api_key)
+
+    try:
+        result = await service.get_submission_status(run_id=run_id, db=db)
+        return SubmissionStatusResponse(**result)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f'Status lookup failed: {str(e)}')
 
 
 @router.get('/incidents', response_model=list[IncidentEventResponse])

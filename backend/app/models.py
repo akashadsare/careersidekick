@@ -585,3 +585,40 @@ class RejectRequest(BaseModel):
 
     draft_id: int = Field(..., description="ApplicationDraft ID")
     reason: str = Field(..., min_length=5, description="Reason for rejection (e.g., needs better cover letter)")
+
+
+# Application Submission Models (M1.7)
+
+
+class SubmitApplicationRequest(BaseModel):
+    """Request to submit an approved application via TinyFish."""
+
+    draft_id: int = Field(..., description="ApplicationDraft ID (must be status=approved)")
+    resume_url: str | None = Field(None, description="Optional resume S3 URL override")
+
+
+class SubmitApplicationResponse(BaseModel):
+    """Response after submitting application."""
+
+    run_id: int = Field(..., description="SubmissionRun ID")
+    draft_id: int = Field(..., description="ApplicationDraft ID")
+    status: Literal['success', 'failure'] = Field(..., description="Submission status")
+    error_code: str | None = Field(None, description="Error code if submission failed")
+    error_message: str | None = Field(None, description="Human-readable error message if submission failed")
+    reached_review_screen: bool = Field(description="Whether browser reached review screen")
+    duration_ms: int | None = Field(None, description="Submission duration in milliseconds")
+    created_at: datetime = Field(description="When submission run was started")
+
+
+class SubmissionStatusResponse(BaseModel):
+    """Response with submission run status and result."""
+
+    run_id: int
+    draft_id: int
+    status: Literal['running', 'completed', 'failed', 'cancelled']
+    started_at: datetime | None
+    finished_at: datetime | None
+    duration_ms: int | None
+    result_json: dict | None = Field(None, description="TinyFish result JSON with filled fields, screenshots, etc.")
+    error_message: str | None
+    created_at: datetime
