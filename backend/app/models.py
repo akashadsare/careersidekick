@@ -445,3 +445,50 @@ class FitScoreBatchResponse(BaseModel):
     jobs_to_apply: list[FitScoreResponse] = Field(description="Score 75-100, recommendation=apply")
     jobs_to_review: list[FitScoreResponse] = Field(description="Score 50-74, recommendation=review")
     jobs_to_skip: list[FitScoreResponse] = Field(description="Score <50, recommendation=skip")
+
+
+# Application Package Generation Models (M1.5)
+
+
+class PackageGenerateRequest(BaseModel):
+    """Request to generate a customized application package."""
+
+    candidate_id: int = Field(..., description="Candidate profile ID")
+    job_id: int = Field(..., description="Job posting ID")
+
+
+class AnswerWithProvenance(BaseModel):
+    """Answer to a screening question with source attribution."""
+
+    question: str = Field(..., description="Screening question")
+    answer: str = Field(..., description="Candidate's answer")
+    provenance: str = Field(
+        ...,
+        description="Source: candidate_answer | resume | profile"
+    )
+    question_id: int | None = Field(None, description="Answer library question ID")
+
+
+class NeedsReviewFlag(BaseModel):
+    """Flag indicating a question that needs manual review."""
+
+    question: str = Field(..., description="Screening question")
+    reason: str = Field(..., description="Why this question needs review (e.g., no candidate answer found)")
+    question_id: int | None = Field(None, description="Answer library question ID")
+
+
+class PackageGenerateResponse(BaseModel):
+    """Response with a generated application package."""
+
+    package_id: int = Field(..., description="ApplicationDraft ID")
+    candidate_id: int
+    job_id: int
+    fit_score: int = Field(description="Fit score from M1.4 (0 if none available)")
+    answers: list[AnswerWithProvenance] = Field(
+        description="Generated screening question answers"
+    )
+    cover_note: str = Field(description="Contextualized cover note (3-5 sentences)")
+    needs_review_flags: list[NeedsReviewFlag] = Field(
+        description="Questions flagged for manual review"
+    )
+    created_at: datetime = Field(description="When package was generated")
