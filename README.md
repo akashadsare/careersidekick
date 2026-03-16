@@ -98,6 +98,7 @@ Current revisions:
 
 - `0001_initial` creates core domain tables
 - `0002_submission_run_timing` adds `started_at`, `finished_at`, `duration_ms` on submission runs
+- `0003_alert_incidents` adds persisted dashboard incident timeline events
 
 Create a new migration after schema changes:
 
@@ -116,6 +117,8 @@ Main prototype endpoints:
 - `GET /api/v1/executions` (supports `status`, `draft_id`, `limit`, `offset` query filters)
 - `GET /api/v1/executions/page` (supports `status`, `draft_id`, `limit`, `cursor`, `sort_direction`)
 - `GET /api/v1/executions/metrics` (supports `days`, default `30`)
+- `GET /api/v1/executions/incidents` (supports `limit`, default `20`)
+- `POST /api/v1/executions/incidents`
 - `GET /api/v1/executions/{id}`
 - `PATCH /api/v1/executions/{id}/status`
 - `GET /api/v1/candidates`, `POST /api/v1/candidates`
@@ -207,6 +210,7 @@ Implemented now:
 7. State-validated execution transitions with cursor-based history pagination
 8. Live execution metrics panel (success rate, average duration, failures by day + trend chart)
 9. Backend unit tests for execution timing transition logic (`pytest`)
+10. Backend-persisted dashboard incident timeline (cross-session and auditable)
 
 Dashboard recent-run rows now deep-link into Live Run Viewer with URL query params (`status`, `run_id`, `limit`, `sort_direction`) so operators land directly on filtered history and selected run detail.
 
@@ -239,6 +243,7 @@ Current test scope includes:
 - execution status transition and pagination contract checks in `tests/test_executions_api.py`
 - run-sse stream event contract checks in `tests/test_run_sse_contract.py`
 - execution metrics aggregation checks in `tests/test_execution_metrics.py`
+- alert incident create/list API checks in `tests/test_incidents_api.py`
 
 ## Continuous integration
 

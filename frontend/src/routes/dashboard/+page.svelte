@@ -9,6 +9,7 @@
   type AlertState = 'normal' | 'warning' | 'critical' | 'muted';
 
   type IncidentEvent = {
+    id?: number;
     state: 'warning' | 'critical' | 'muted' | 'recovered';
     message: string;
     at: string;
@@ -104,32 +105,106 @@
     return 'warning';
   }
 
-  function appendIncident(state: IncidentEvent['state'], message: string) {
-    incidentTimeline = [
-      {
-        state,
-        message,
-        at: new Date().toLocaleTimeString(),
-      },
-      ...incidentTimeline,
-    ].slice(0, 20);
+  function appendIncident(event: IncidentEvent) {
+    incidentTimeline = [event, ...incidentTimeline].slice(0, 20);
   }
 
-  function recordAlertTransition(nextState: AlertState) {
+  function toAlertState(state: IncidentEvent['state']): AlertState {
+    if (state === 'critical') return 'critical';
+    if (state === 'warning') return 'warning';
+    if (state === 'muted') return 'muted';
+    return 'normal';
+  }
+
+  async function loadIncidents() {
+    try {
+      const response = await fetch(`${API_BASE}/api/v1/executions/incidents?limit=20`);
+      if (!response.ok) {
+        return;
+      }
+
+      const payload = (await response.json()) as Array<{
+        id: number;
+        state: IncidentEvent['state'];
+        message: string;
+        created_at: string;
+      }>;
+
+      incidentTimeline = payload.map((event) => ({
+        id: event.id,
+        state: event.state,
+        message: event.message,
+        at: new Date(event.created_at).toLocaleTimeString(),
+      }));
+
+      if (incidentTimeline.length > 0) {
+        previousAlertState = toAlertState(incidentTimeline[0].state);
+      }
+    } catch {
+      // Incident hydration is best-effort and should not block dashboard loading.
+    }
+  }
+
+  async function persistIncident(state: IncidentEvent['state'], message: string): Promise<void> {
+    const response = await fetch(`${API_BASE}/api/v1/executions/incidents`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ state, message }),
+    });
+
+    if (!response.ok) {
+      throw new Error('incident persist failed');
+    }
+
+    const payload = (await response.json()) as {
+      id: number;
+      state: IncidentEvent['state'];
+      message: string;
+      created_at: string;
+    };
+
+    appendIncident({
+      id: payload.id,
+      state: payload.state,
+      message: payload.message,
+      at: new Date(payload.created_at).toLocaleTimeString(),
+    });
+  }
+
+  async function recordAlertTransition(nextState: AlertState) {
     if (nextState === previousAlertState) return;
 
     if (nextState === 'normal' && previousAlertState !== 'normal') {
-      appendIncident('recovered', `Recovered from ${previousAlertState}.`);
+      const message = `Recovered from ${previousAlertState}.`;
+      try {
+        await persistIncident('recovered', message);
+      } catch {
+        appendIncident({ state: 'recovered', message, at: new Date().toLocaleTimeString() });
+      }
       previousAlertState = 'normal';
       return;
     }
 
+    let state: IncidentEvent['state'] | null = null;
+    let message = '';
+
     if (nextState === 'warning') {
-      appendIncident('warning', 'Success rate dropped below threshold.');
+      state = 'warning';
+      message = 'Success rate dropped below threshold.';
     } else if (nextState === 'critical') {
-      appendIncident('critical', 'Escalated to sustained degradation.');
+      state = 'critical';
+      message = 'Escalated to sustained degradation.';
     } else if (nextState === 'muted') {
-      appendIncident('muted', 'Critical alerts are muted.');
+      state = 'muted';
+      message = 'Critical alerts are muted.';
+    }
+
+    if (state !== null) {
+      try {
+        await persistIncident(state, message);
+      } catch {
+        appendIncident({ state, message, at: new Date().toLocaleTimeString() });
+      }
     }
 
     previousAlertState = nextState;
@@ -169,7 +244,7 @@
       }
 
       const nextState = computeAlertState(metrics, lowSuccessStreak);
-      recordAlertTransition(nextState);
+      await recordAlertTransition(nextState);
     } catch (e) {
       error = e instanceof Error ? e.message : 'Unknown error';
     } finally {
@@ -219,7 +294,7 @@
 
   function muteAlertsForTenMinutes() {
     mutedUntilEpochMs = Date.now() + ALERT_MUTE_MINUTES * 60 * 1000;
-    recordAlertTransition('muted');
+    void recordAlertTransition('muted');
   }
 
   function clearAutoRefreshTimer() {
@@ -250,6 +325,7 @@
   onMount(async () => {
     loadPrefs();
     prefsReady = true;
+    await loadIncidents();
     await loadDashboard();
   });
 

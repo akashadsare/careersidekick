@@ -328,4 +328,70 @@ describe('DashboardPage', () => {
 
     await screen.findByText(/Critical degradation alerts are muted until/);
   });
+
+  it('hydrates incident timeline from backend incidents endpoint', async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes('/api/v1/executions/incidents')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => [
+            {
+              id: 7,
+              state: 'critical',
+              message: 'Escalated to sustained degradation.',
+              created_at: '2026-03-16T09:00:00Z',
+            },
+          ],
+        } as Response;
+      }
+      if (url.includes('/api/v1/executions/metrics')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            window_days: 30,
+            total_runs: 10,
+            completed_runs: 9,
+            failed_runs: 1,
+            cancelled_runs: 0,
+            running_runs: 0,
+            success_rate: 90,
+            avg_duration_ms: 2000,
+            failures_by_day: [{ day: '2026-03-16', count: 1 }],
+          }),
+        } as Response;
+      }
+      if (url.includes('/api/v1/executions/page')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            data: [],
+            pagination: {
+              limit: 8,
+              cursor: null,
+              next_cursor: null,
+              has_more: false,
+              total_count: 0,
+              sort_direction: 'desc',
+            },
+          }),
+        } as Response;
+      }
+      return {
+        ok: false,
+        status: 404,
+        json: async () => ({}),
+      } as Response;
+    });
+
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(DashboardPage);
+
+    await screen.findByText('Incident Timeline');
+    await screen.findByText('Escalated to sustained degradation.');
+  });
 });

@@ -8,12 +8,14 @@ from sqlalchemy.orm import Session
 from fastapi import Depends
 
 from ..db import get_db
-from ..db_models import RunStatus, SubmissionRun
+from ..db_models import AlertIncident, IncidentState, RunStatus, SubmissionRun
 from ..models import (
     DailyFailureCount,
     ExecutionHistoryPagination,
     ExecutionHistoryResponse,
     ExecutionMetricsResponse,
+    IncidentEventCreateRequest,
+    IncidentEventResponse,
     SubmissionRunDetailResponse,
     SubmissionRunResponse,
     SubmissionRunStatusUpdateRequest,
@@ -25,6 +27,15 @@ from ..services.tinyfish_client import stream_tinyfish_sse
 router = APIRouter()
 
 TERMINAL_RUN_STATUSES = {RunStatus.COMPLETED, RunStatus.FAILED, RunStatus.CANCELLED}
+
+
+def _incident_response(row: AlertIncident) -> IncidentEventResponse:
+    return IncidentEventResponse(
+        id=row.id,
+        state=row.state.value,
+        message=row.message,
+        created_at=row.created_at,
+    )
 
 
 def _apply_status_timestamps(run: SubmissionRun, target: RunStatus, now: datetime | None = None) -> None:
@@ -194,6 +205,27 @@ def get_execution_metrics(
     window_start = datetime.now(UTC) - timedelta(days=days)
     rows = db.query(SubmissionRun).filter(SubmissionRun.created_at >= window_start).all()
     return _compute_execution_metrics(rows, window_days=days)
+
+
+@router.get('/incidents', response_model=list[IncidentEventResponse])
+def list_incidents(
+    limit: int = Query(default=20, ge=1, le=200),
+    db: Session = Depends(get_db),
+) -> list[IncidentEventResponse]:
+    rows = db.query(AlertIncident).order_by(AlertIncident.id.desc()).limit(limit).all()
+    return [_incident_response(row) for row in rows]
+
+
+@router.post('/incidents', response_model=IncidentEventResponse, status_code=201)
+def create_incident(
+    payload: IncidentEventCreateRequest,
+    db: Session = Depends(get_db),
+) -> IncidentEventResponse:
+    row = AlertIncident(state=IncidentState(payload.state), message=payload.message)
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+    return _incident_response(row)
 
 
 @router.get('/{run_id}', response_model=SubmissionRunDetailResponse)

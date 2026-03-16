@@ -22,6 +22,13 @@ class RunStatus(str, Enum):
     CANCELLED = 'cancelled'
 
 
+class IncidentState(str, Enum):
+    WARNING = 'warning'
+    CRITICAL = 'critical'
+    MUTED = 'muted'
+    RECOVERED = 'recovered'
+
+
 class CandidateProfile(Base):
     __tablename__ = 'candidate_profiles'
 
@@ -84,3 +91,14 @@ class SubmissionRun(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
 
     draft: Mapped[ApplicationDraft | None] = relationship(back_populates='runs')
+
+
+class AlertIncident(Base):
+    __tablename__ = 'alert_incidents'
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    state: Mapped[IncidentState] = mapped_column(
+        SAEnum(IncidentState, name='incident_state', native_enum=False), nullable=False
+    )
+    message: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC))

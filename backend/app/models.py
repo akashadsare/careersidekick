@@ -136,3 +136,15 @@ class ExecutionMetricsResponse(BaseModel):
     success_rate: float
     avg_duration_ms: int | None
     failures_by_day: list[DailyFailureCount]
+
+
+class IncidentEventCreateRequest(BaseModel):
+    state: Literal['warning', 'critical', 'muted', 'recovered']
+    message: str = Field(..., min_length=1)
+
+
+class IncidentEventResponse(BaseModel):
+    id: int
+    state: Literal['warning', 'critical', 'muted', 'recovered']
+    message: str
+    created_at: datetime
