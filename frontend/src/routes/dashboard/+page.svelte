@@ -60,6 +60,7 @@
   let hiddenFilteredIncidentCount = 0;
   let incidentLoading = false;
   let incidentLoadingMore = false;
+  let incidentLastRefreshedAt = '';
 
   $: parsedSuccessThreshold = Number(successAlertThreshold);
   $: hasValidThreshold = Number.isFinite(parsedSuccessThreshold) && parsedSuccessThreshold >= 0;
@@ -75,6 +76,7 @@
     incidentTimeline.length > 0
       ? new Date(incidentTimeline[incidentTimeline.length - 1].createdAt).toLocaleString()
       : '';
+  $: incidentRefreshLabel = incidentLastRefreshedAt ? `Incidents updated: ${formatIncidentRefreshAge(incidentLastRefreshedAt)}` : '';
 
   function formatDuration(durationMs: number | null): string {
     if (durationMs === null) return '-';
@@ -150,6 +152,31 @@
     return 'normal';
   }
 
+  function formatIncidentRefreshAge(isoTimestamp: string): string {
+    const refreshedEpochMs = Date.parse(isoTimestamp);
+    if (Number.isNaN(refreshedEpochMs)) {
+      return 'just now';
+    }
+
+    const deltaSeconds = Math.max(0, Math.floor((Date.now() - refreshedEpochMs) / 1000));
+    if (deltaSeconds < 60) {
+      return 'just now';
+    }
+
+    const deltaMinutes = Math.floor(deltaSeconds / 60);
+    if (deltaMinutes < 60) {
+      return `${deltaMinutes}m ago`;
+    }
+
+    const deltaHours = Math.floor(deltaMinutes / 60);
+    if (deltaHours < 24) {
+      return `${deltaHours}h ago`;
+    }
+
+    const deltaDays = Math.floor(deltaHours / 24);
+    return `${deltaDays}d ago`;
+  }
+
   async function loadIncidents(options: { append?: boolean; cursor?: number | null } = {}) {
     const append = options.append ?? false;
     const cursor = options.cursor ?? null;
@@ -200,6 +227,7 @@
       } else {
         incidentTimeline = mapped;
       }
+      incidentLastRefreshedAt = new Date().toISOString();
 
       if (!append && incidentTimeline.length > 0) {
         previousAlertState = toAlertState(incidentTimeline[0].state);
@@ -605,7 +633,12 @@
 
       <div class="card pane">
         <div class="pane-heading">
-          <h3>Incident Timeline</h3>
+          <div>
+            <h3>Incident Timeline</h3>
+            {#if incidentRefreshLabel}
+              <p class="muted incident-updated-label">{incidentRefreshLabel}</p>
+            {/if}
+          </div>
           <div class="filter-chip-row" aria-label="Active incident filters">
             {#if hasActiveIncidentFilters}
               <button class="btn btn-inline" on:click={clearAllIncidentFilters}>
@@ -791,6 +824,11 @@
     display: flex;
     gap: 6px;
     flex-wrap: wrap;
+  }
+
+  .incident-updated-label {
+    margin: 4px 0 0;
+    font-size: 12px;
   }
 
   .filter-chip {

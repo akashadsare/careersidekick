@@ -263,6 +263,7 @@ describe('DashboardPage', () => {
     render(DashboardPage);
 
     await screen.findByText('Success rate 50% is below threshold 90%.');
+    await screen.findByText(/Incidents updated:/);
     await screen.findByText('No incidents match the current timeline filters.');
     await screen.findByText('14d window');
     await screen.findByText('state: critical');
