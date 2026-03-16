@@ -19,7 +19,10 @@ describe('LiveRunViewer', () => {
       running_runs: 2,
       success_rate: 71.43,
       avg_duration_ms: 2200,
-      failures_by_day: [{ day: '2026-03-16', count: 3 }],
+      failures_by_day: [
+        { day: '2026-03-15', count: 1 },
+        { day: '2026-03-16', count: 3 },
+      ],
     };
 
     const pagePayload = {
@@ -93,6 +96,7 @@ describe('LiveRunViewer', () => {
 
     await screen.findByText(/Total:\s*42/);
     await screen.findByText('71.43%');
+    await screen.findByText('Failure trend (daily)');
     expect(screen.getByText('1.3 s')).toBeTruthy();
 
     const runButton = screen.getByRole('button', { name: /tf-1/i });

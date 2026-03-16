@@ -82,6 +82,22 @@
     return `${minutes}m ${remSeconds}s`;
   }
 
+  function buildFailureTrendPoints(buckets: Array<{ day: string; count: number }>): string {
+    if (buckets.length <= 1) return '';
+
+    const width = 360;
+    const height = 120;
+    const maxCount = Math.max(...buckets.map((bucket) => bucket.count), 1);
+
+    return buckets
+      .map((bucket, index) => {
+        const x = (index / (buckets.length - 1)) * width;
+        const y = height - (bucket.count / maxCount) * height;
+        return `${x},${y}`;
+      })
+      .join(' ');
+  }
+
   async function loadMetrics() {
     metricsLoading = true;
     metricsError = '';
@@ -426,6 +442,25 @@
       {#if metrics.failures_by_day.length === 0}
         <p class="muted">No failures in selected window.</p>
       {:else}
+        {#if metrics.failures_by_day.length > 1}
+          <div class="trend card">
+            <p><strong>Failure trend (daily)</strong></p>
+            <svg viewBox="0 0 360 120" role="img" aria-label="Failure trend by day">
+              <polyline
+                points={buildFailureTrendPoints(metrics.failures_by_day)}
+                fill="none"
+                stroke="var(--text)"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
+            </svg>
+            <p class="muted">
+              {metrics.failures_by_day[0].day} to {metrics.failures_by_day[metrics.failures_by_day.length - 1].day}
+            </p>
+          </div>
+        {/if}
+
         <div class="history-table">
           <div class="row header metrics-row">
             <span>Day</span>
@@ -674,6 +709,21 @@
   .metrics-row {
     grid-template-columns: 1fr 90px;
     cursor: default;
+  }
+
+  .trend {
+    margin-bottom: 10px;
+    padding: 10px;
+  }
+
+  .trend svg {
+    width: 100%;
+    max-width: 520px;
+    height: auto;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--surface-soft);
+    display: block;
   }
 
   .timeline-item {

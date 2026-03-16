@@ -191,7 +191,7 @@ Implemented now:
 4. Postgres persistence for candidates, jobs, drafts, and submission runs
 5. Alembic migration scaffolding with timing revision for run telemetry
 6. State-validated execution transitions with cursor-based history pagination
-7. Live execution metrics panel (success rate, average duration, failures by day)
+7. Live execution metrics panel (success rate, average duration, failures by day + trend chart)
 8. Backend unit tests for execution timing transition logic (`pytest`)
 
 Next hard milestones:
