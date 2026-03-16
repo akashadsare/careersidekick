@@ -56,6 +56,7 @@
   let previousAlertState: AlertState = 'normal';
   let incidentTimeline: IncidentEvent[] = [];
   let incidentHasMore = false;
+  let incidentLoading = false;
   let incidentLoadingMore = false;
 
   $: parsedSuccessThreshold = Number(successAlertThreshold);
@@ -131,6 +132,8 @@
 
     if (append) {
       incidentLoadingMore = true;
+    } else {
+      incidentLoading = true;
     }
 
     try {
@@ -181,6 +184,8 @@
     } finally {
       if (append) {
         incidentLoadingMore = false;
+      } else {
+        incidentLoading = false;
       }
     }
   }
@@ -285,8 +290,6 @@
         fetch(`${API_BASE}/api/v1/executions/page?${runsParams.toString()}`),
       ]);
 
-      await loadIncidents();
-
       if (!metricsRes.ok) {
         throw new Error(`Metrics load failed: ${metricsRes.status}`);
       }
@@ -298,6 +301,8 @@
       const runsPayload = await runsRes.json();
       recentRuns = runsPayload.data;
       lastUpdatedAt = new Date().toLocaleString();
+
+      await loadIncidents();
 
       if (hasValidThreshold && metrics && metrics.success_rate < parsedSuccessThreshold) {
         lowSuccessStreak += 1;
@@ -540,7 +545,17 @@
 
       <div class="card pane">
         <h3>Incident Timeline</h3>
-        {#if incidentTimeline.length === 0}
+        {#if incidentLoading && incidentTimeline.length === 0}
+          <div class="timeline-list" aria-label="Incident timeline loading">
+            {#each Array.from({ length: 3 }) as _, index}
+              <div class="timeline-row skeleton" aria-hidden="true" data-skeleton-row={index}>
+                <span class="skeleton-chip"></span>
+                <span class="skeleton-chip"></span>
+                <span class="skeleton-line"></span>
+              </div>
+            {/each}
+          </div>
+        {:else if incidentTimeline.length === 0}
           <p class="muted">No alert transitions yet.</p>
         {:else}
           <div class="timeline-list">
@@ -669,6 +684,37 @@
   .timeline-footer {
     margin-top: 10px;
     font-size: 12px;
+  }
+
+  .timeline-row.skeleton {
+    grid-template-columns: 88px 92px 1fr;
+  }
+
+  .skeleton-chip,
+  .skeleton-line {
+    display: inline-block;
+    height: 14px;
+    border-radius: 999px;
+    background: linear-gradient(90deg, #ececec 0%, #f5f5f5 50%, #ececec 100%);
+    background-size: 200% 100%;
+    animation: timeline-shimmer 1.1s linear infinite;
+  }
+
+  .skeleton-chip {
+    width: 72px;
+  }
+
+  .skeleton-line {
+    width: 100%;
+  }
+
+  @keyframes timeline-shimmer {
+    from {
+      background-position: 200% 0;
+    }
+    to {
+      background-position: -200% 0;
+    }
   }
 
   .timeline-time {
