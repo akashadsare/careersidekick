@@ -117,7 +117,7 @@ Main prototype endpoints:
 - `GET /api/v1/executions` (supports `status`, `draft_id`, `limit`, `offset` query filters)
 - `GET /api/v1/executions/page` (supports `status`, `draft_id`, `limit`, `cursor`, `sort_direction`)
 - `GET /api/v1/executions/metrics` (supports `days`, default `30`)
-- `GET /api/v1/executions/incidents` (supports `limit`, default `20`)
+- `GET /api/v1/executions/incidents` (supports `limit`, optional `days`, optional `state`)
 - `POST /api/v1/executions/incidents`
 - `GET /api/v1/executions/{id}`
 - `PATCH /api/v1/executions/{id}/status`
@@ -210,7 +210,7 @@ Implemented now:
 7. State-validated execution transitions with cursor-based history pagination
 8. Live execution metrics panel (success rate, average duration, failures by day + trend chart)
 9. Backend unit tests for execution timing transition logic (`pytest`)
-10. Backend-persisted dashboard incident timeline (cross-session and auditable)
+10. Backend-persisted dashboard incident timeline (cross-session and auditable) with server-side `days` and `state` filtering
 
 Dashboard recent-run rows now deep-link into Live Run Viewer with URL query params (`status`, `run_id`, `limit`, `sort_direction`) so operators land directly on filtered history and selected run detail.
 

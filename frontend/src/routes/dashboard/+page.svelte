@@ -40,6 +40,7 @@
   let recentRuns: RunRow[] = [];
   let days = '30';
   let statusFilter: '' | 'running' | 'completed' | 'failed' | 'cancelled' = '';
+  let incidentStateFilter: '' | 'warning' | 'critical' | 'muted' | 'recovered' = '';
   let successAlertThreshold = '80';
   let autoRefreshEnabled = false;
   let autoRefreshSeconds = '30';
@@ -118,7 +119,15 @@
 
   async function loadIncidents() {
     try {
-      const response = await fetch(`${API_BASE}/api/v1/executions/incidents?limit=20`);
+      const params = new URLSearchParams({ limit: '20' });
+      if (days) {
+        params.set('days', days);
+      }
+      if (incidentStateFilter) {
+        params.set('state', incidentStateFilter);
+      }
+
+      const response = await fetch(`${API_BASE}/api/v1/executions/incidents?${params.toString()}`);
       if (!response.ok) {
         return;
       }
@@ -225,6 +234,8 @@
         fetch(`${API_BASE}/api/v1/executions/page?${runsParams.toString()}`),
       ]);
 
+      await loadIncidents();
+
       if (!metricsRes.ok) {
         throw new Error(`Metrics load failed: ${metricsRes.status}`);
       }
@@ -261,6 +272,7 @@
       const parsed = JSON.parse(raw) as {
         days?: string;
         statusFilter?: '' | 'running' | 'completed' | 'failed' | 'cancelled';
+        incidentStateFilter?: '' | 'warning' | 'critical' | 'muted' | 'recovered';
         successAlertThreshold?: string;
         autoRefreshEnabled?: boolean;
         autoRefreshSeconds?: string;
@@ -269,6 +281,7 @@
 
       if (parsed.days) days = parsed.days;
       if (parsed.statusFilter !== undefined) statusFilter = parsed.statusFilter;
+      if (parsed.incidentStateFilter !== undefined) incidentStateFilter = parsed.incidentStateFilter;
       if (parsed.successAlertThreshold) successAlertThreshold = parsed.successAlertThreshold;
       if (typeof parsed.autoRefreshEnabled === 'boolean') autoRefreshEnabled = parsed.autoRefreshEnabled;
       if (parsed.autoRefreshSeconds) autoRefreshSeconds = parsed.autoRefreshSeconds;
@@ -284,6 +297,7 @@
     const payload = {
       days,
       statusFilter,
+      incidentStateFilter,
       successAlertThreshold,
       autoRefreshEnabled,
       autoRefreshSeconds,
@@ -353,6 +367,16 @@
           <option value="completed">completed</option>
           <option value="failed">failed</option>
           <option value="cancelled">cancelled</option>
+        </select>
+      </label>
+      <label>
+        Incident state
+        <select class="select" bind:value={incidentStateFilter}>
+          <option value="">all</option>
+          <option value="warning">warning</option>
+          <option value="critical">critical</option>
+          <option value="muted">muted</option>
+          <option value="recovered">recovered</option>
         </select>
       </label>
       <label>

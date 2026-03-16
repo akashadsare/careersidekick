@@ -201,6 +201,7 @@ describe('DashboardPage', () => {
       JSON.stringify({
         days: '14',
         statusFilter: 'running',
+        incidentStateFilter: 'critical',
         successAlertThreshold: '90',
         autoRefreshEnabled: true,
         autoRefreshSeconds: '15',
@@ -243,6 +244,13 @@ describe('DashboardPage', () => {
           }),
         } as Response;
       }
+      if (url.includes('/api/v1/executions/incidents')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => [],
+        } as Response;
+      }
       return {
         ok: false,
         status: 404,
@@ -261,12 +269,20 @@ describe('DashboardPage', () => {
     expect((autoRefreshCheckbox as HTMLInputElement).checked).toBe(true);
 
     const selects = screen.getAllByRole('combobox');
-    const intervalSelect = selects[1] as HTMLSelectElement;
+    const intervalSelect = selects[2] as HTMLSelectElement;
     expect(intervalSelect.value).toBe('15');
 
     const allUrls = fetchMock.mock.calls.map((call) => String(call[0]));
     expect(allUrls.some((url) => url.includes('/api/v1/executions/metrics?days=14'))).toBe(true);
     expect(allUrls.some((url) => url.includes('/api/v1/executions/page?') && url.includes('status=running'))).toBe(true);
+    expect(
+      allUrls.some(
+        (url) =>
+          url.includes('/api/v1/executions/incidents?') &&
+          url.includes('days=14') &&
+          url.includes('state=critical'),
+      ),
+    ).toBe(true);
   });
 
   it('escalates on sustained degradation and allows muting critical alert', async () => {
@@ -393,5 +409,74 @@ describe('DashboardPage', () => {
 
     await screen.findByText('Incident Timeline');
     await screen.findByText('Escalated to sustained degradation.');
+  });
+
+  it('passes incident state filter on refresh', async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes('/api/v1/executions/incidents')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => [],
+        } as Response;
+      }
+      if (url.includes('/api/v1/executions/metrics')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            window_days: 30,
+            total_runs: 10,
+            completed_runs: 9,
+            failed_runs: 1,
+            cancelled_runs: 0,
+            running_runs: 0,
+            success_rate: 90,
+            avg_duration_ms: 2000,
+            failures_by_day: [{ day: '2026-03-16', count: 1 }],
+          }),
+        } as Response;
+      }
+      if (url.includes('/api/v1/executions/page')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            data: [],
+            pagination: {
+              limit: 8,
+              cursor: null,
+              next_cursor: null,
+              has_more: false,
+              total_count: 0,
+              sort_direction: 'desc',
+            },
+          }),
+        } as Response;
+      }
+
+      return {
+        ok: false,
+        status: 404,
+        json: async () => ({}),
+      } as Response;
+    });
+
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(DashboardPage);
+
+    await screen.findByText('Operations Dashboard');
+    const incidentSelect = screen.getByRole('combobox', { name: 'Incident state' });
+    await fireEvent.change(incidentSelect, { target: { value: 'muted' } });
+
+    const refreshButton = screen.getByRole('button', { name: 'Refresh' });
+    await fireEvent.click(refreshButton);
+
+    const incidentCalls = fetchMock.mock.calls
+      .map((call) => String(call[0]))
+      .filter((url) => url.includes('/api/v1/executions/incidents?'));
+    expect(incidentCalls.some((url) => url.includes('state=muted'))).toBe(true);
   });
 });

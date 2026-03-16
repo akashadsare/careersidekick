@@ -210,9 +210,23 @@ def get_execution_metrics(
 @router.get('/incidents', response_model=list[IncidentEventResponse])
 def list_incidents(
     limit: int = Query(default=20, ge=1, le=200),
+    days: int | None = Query(default=None, ge=1, le=180),
+    state: str | None = Query(default=None),
     db: Session = Depends(get_db),
 ) -> list[IncidentEventResponse]:
-    rows = db.query(AlertIncident).order_by(AlertIncident.id.desc()).limit(limit).all()
+    query = db.query(AlertIncident)
+
+    if days is not None:
+        window_start = datetime.now(UTC) - timedelta(days=days)
+        query = query.filter(AlertIncident.created_at >= window_start)
+
+    if state:
+        try:
+            query = query.filter(AlertIncident.state == IncidentState(state))
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail='invalid incident state filter') from exc
+
+    rows = query.order_by(AlertIncident.id.desc()).limit(limit).all()
     return [_incident_response(row) for row in rows]
 
 
