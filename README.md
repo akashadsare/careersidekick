@@ -211,6 +211,7 @@ Current test scope includes:
 
 - execution timing transition behavior in `tests/test_execution_timing.py`
 - execution status transition and pagination contract checks in `tests/test_executions_api.py`
+- run-sse stream event contract checks in `tests/test_run_sse_contract.py`
 
 ## Continuous integration
 
