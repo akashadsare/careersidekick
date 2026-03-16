@@ -852,6 +852,13 @@
     vertical-align: middle;
   }
 
+  .btn-inline:focus-visible,
+  .filter-chip-button:focus-visible {
+    outline: 2px solid var(--text);
+    outline-offset: 2px;
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--surface) 60%, transparent);
+  }
+
   .timeline-row.skeleton {
     grid-template-columns: 88px 92px 1fr;
   }
