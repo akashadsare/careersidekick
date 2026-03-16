@@ -16,6 +16,7 @@
       <p class="muted">Your trusty job-hunting buddy.</p>
     </div>
     <div class="actions">
+      <a class="btn" href="/dashboard">Dashboard</a>
       <a class="btn" href="/approval">Approval Panel</a>
       <a class="btn" href="/live-run">Live Run Viewer</a>
       <button class="btn" on:click={toggleTheme}>{dark ? 'Light' : 'Dark'} mode</button>

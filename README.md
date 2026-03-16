@@ -164,6 +164,7 @@ Current frontend test scope includes Live Run Viewer coverage for:
 
 Open:
 
+- `http://localhost:5173/dashboard`
 - `http://localhost:5173/approval`
 - `http://localhost:5173/live-run`
 
@@ -186,13 +187,14 @@ This is a planning-to-prototype scaffold, not production yet.
 Implemented now:
 
 1. Backend SSE proxy to TinyFish `/run-sse`
-2. Approval panel UI with editable package preview
-3. Live run viewer with progress log + streaming iframe + final result
-4. Postgres persistence for candidates, jobs, drafts, and submission runs
-5. Alembic migration scaffolding with timing revision for run telemetry
-6. State-validated execution transitions with cursor-based history pagination
-7. Live execution metrics panel (success rate, average duration, failures by day + trend chart)
-8. Backend unit tests for execution timing transition logic (`pytest`)
+2. Operations dashboard route for run health and failure trends
+3. Approval panel UI with editable package preview
+4. Live run viewer with progress log + streaming iframe + final result
+5. Postgres persistence for candidates, jobs, drafts, and submission runs
+6. Alembic migration scaffolding with timing revision for run telemetry
+7. State-validated execution transitions with cursor-based history pagination
+8. Live execution metrics panel (success rate, average duration, failures by day + trend chart)
+9. Backend unit tests for execution timing transition logic (`pytest`)
 
 Next hard milestones:
 
