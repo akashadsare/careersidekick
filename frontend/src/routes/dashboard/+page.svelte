@@ -61,6 +61,8 @@
   let incidentLoading = false;
   let incidentLoadingMore = false;
   let incidentLastRefreshedAt = '';
+  let incidentRecencyTicker: ReturnType<typeof setInterval> | null = null;
+  let incidentRecencyNowEpochMs = Date.now();
 
   $: parsedSuccessThreshold = Number(successAlertThreshold);
   $: hasValidThreshold = Number.isFinite(parsedSuccessThreshold) && parsedSuccessThreshold >= 0;
@@ -158,7 +160,7 @@
       return 'just now';
     }
 
-    const deltaSeconds = Math.max(0, Math.floor((Date.now() - refreshedEpochMs) / 1000));
+    const deltaSeconds = Math.max(0, Math.floor((incidentRecencyNowEpochMs - refreshedEpochMs) / 1000));
     if (deltaSeconds < 60) {
       return 'just now';
     }
@@ -477,17 +479,35 @@
     }, seconds * 1000);
   }
 
+  function restartIncidentRecencyTicker() {
+    if (typeof window === 'undefined') return;
+
+    if (incidentRecencyTicker !== null) {
+      clearInterval(incidentRecencyTicker);
+      incidentRecencyTicker = null;
+    }
+
+    incidentRecencyTicker = setInterval(() => {
+      incidentRecencyNowEpochMs = Date.now();
+    }, 30_000);
+  }
+
   $: if (prefsReady) savePrefs();
   $: if (prefsReady) restartAutoRefreshTimer();
 
   onMount(async () => {
     loadPrefs();
     prefsReady = true;
+    restartIncidentRecencyTicker();
     await loadDashboard();
   });
 
   onDestroy(() => {
     clearAutoRefreshTimer();
+    if (incidentRecencyTicker !== null) {
+      clearInterval(incidentRecencyTicker);
+      incidentRecencyTicker = null;
+    }
   });
 </script>
 
