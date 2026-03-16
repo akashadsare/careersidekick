@@ -204,6 +204,7 @@ Next hard milestones:
 ```bash
 cd backend
 source .venv/bin/activate
+ruff check .
 pytest -q
 ```
 
@@ -217,5 +218,5 @@ Current test scope includes:
 
 GitHub Actions runs on each push and pull request:
 
-- backend: dependency install + `pytest -q`
-- frontend: dependency install + `npm run check` + `npm run test`
+- backend: dependency install + `ruff check .` + `pytest -q`
+- frontend: dependency install + `npm run check` + `npm run test` + `npm run build`

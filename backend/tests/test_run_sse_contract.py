@@ -84,3 +84,24 @@ def test_run_sse_updates_run_on_failed_complete_event(monkeypatch) -> None:
     assert db.last_run.run_status == RunStatus.FAILED
     assert db.last_run.error_message == 'blocked by site'
     assert db.last_run.finished_at is not None
+
+
+def test_run_sse_ignores_invalid_data_chunk_and_continues(monkeypatch) -> None:
+    async def fake_stream(_payload: dict[str, object]):
+        yield 'data: {not-json}\n'
+        yield 'event: keep-alive\n'
+        yield 'data: {"type":"STARTED","runId":"tf-777"}\n'
+
+    monkeypatch.setattr(executions, 'stream_tinyfish_sse', fake_stream)
+
+    req = TinyFishRunRequest(url='https://example.com', goal='smoke')
+    db = FakeSession()
+
+    response = asyncio.run(executions.run_sse(req, db))
+    lines = asyncio.run(_collect_stream_lines(response))
+
+    assert any('{not-json}' in line for line in lines)
+    assert any('event: keep-alive' in line for line in lines)
+    assert db.last_run is not None
+    assert db.last_run.tinyfish_run_id == 'tf-777'
+    assert db.last_run.run_status == RunStatus.RUNNING
