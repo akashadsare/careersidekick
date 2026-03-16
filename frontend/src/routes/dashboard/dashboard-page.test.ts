@@ -654,4 +654,92 @@ describe('DashboardPage', () => {
       expect(screen.queryByLabelText('Incident timeline loading')).toBeNull();
     });
   });
+
+  it('does not append optimistic incidents that are excluded by active incident filter', async () => {
+    localStorage.setItem(
+      'careersidekick_dashboard_prefs',
+      JSON.stringify({
+        days: '30',
+        incidentStateFilter: 'critical',
+        successAlertThreshold: '95',
+      }),
+    );
+
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+
+      if (url.includes('/api/v1/executions/incidents') && init?.method === 'POST') {
+        return {
+          ok: true,
+          status: 201,
+          json: async () => ({
+            id: 999,
+            state: 'warning',
+            message: 'Success rate dropped below threshold.',
+            created_at: '2026-03-16T10:00:00Z',
+          }),
+        } as Response;
+      }
+
+      if (url.includes('/api/v1/executions/incidents')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => [],
+        } as Response;
+      }
+
+      if (url.includes('/api/v1/executions/metrics')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            window_days: 30,
+            total_runs: 10,
+            completed_runs: 9,
+            failed_runs: 1,
+            cancelled_runs: 0,
+            running_runs: 0,
+            success_rate: 90,
+            avg_duration_ms: 2000,
+            failures_by_day: [{ day: '2026-03-16', count: 1 }],
+          }),
+        } as Response;
+      }
+
+      if (url.includes('/api/v1/executions/page')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            data: [],
+            pagination: {
+              limit: 8,
+              cursor: null,
+              next_cursor: null,
+              has_more: false,
+              total_count: 0,
+              sort_direction: 'desc',
+            },
+          }),
+        } as Response;
+      }
+
+      return {
+        ok: false,
+        status: 404,
+        json: async () => ({}),
+      } as Response;
+    });
+
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(DashboardPage);
+
+    await screen.findByText('Operations Dashboard');
+    await screen.findByText(/Success rate 90% is below threshold 95%/);
+    await waitFor(() => {
+      expect(screen.queryByText('Success rate dropped below threshold.')).toBeNull();
+    });
+  });
 });

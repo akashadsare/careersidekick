@@ -119,6 +119,25 @@
     incidentTimeline = [event, ...incidentTimeline].slice(0, 100);
   }
 
+  function incidentMatchesActiveFilters(state: IncidentEvent['state'], createdAt: string): boolean {
+    if (incidentStateFilter && state !== incidentStateFilter) {
+      return false;
+    }
+
+    const windowDays = Number(days);
+    if (!Number.isFinite(windowDays) || windowDays < 1) {
+      return true;
+    }
+
+    const createdAtEpochMs = Date.parse(createdAt);
+    if (Number.isNaN(createdAtEpochMs)) {
+      return true;
+    }
+
+    const windowStartEpochMs = Date.now() - windowDays * 24 * 60 * 60 * 1000;
+    return createdAtEpochMs >= windowStartEpochMs;
+  }
+
   function toAlertState(state: IncidentEvent['state']): AlertState {
     if (state === 'critical') return 'critical';
     if (state === 'warning') return 'warning';
@@ -225,13 +244,15 @@
       created_at: string;
     };
 
-    appendIncident({
-      id: payload.id,
-      state: payload.state,
-      message: payload.message,
-      at: new Date(payload.created_at).toLocaleTimeString(),
-      createdAt: payload.created_at,
-    });
+    if (incidentMatchesActiveFilters(payload.state, payload.created_at)) {
+      appendIncident({
+        id: payload.id,
+        state: payload.state,
+        message: payload.message,
+        at: new Date(payload.created_at).toLocaleTimeString(),
+        createdAt: payload.created_at,
+      });
+    }
   }
 
   async function recordAlertTransition(nextState: AlertState) {
@@ -243,7 +264,9 @@
         await persistIncident('recovered', message);
       } catch {
         const now = new Date().toISOString();
-        appendIncident({ state: 'recovered', message, at: new Date(now).toLocaleTimeString(), createdAt: now });
+        if (incidentMatchesActiveFilters('recovered', now)) {
+          appendIncident({ state: 'recovered', message, at: new Date(now).toLocaleTimeString(), createdAt: now });
+        }
       }
       previousAlertState = 'normal';
       return;
@@ -268,7 +291,9 @@
         await persistIncident(state, message);
       } catch {
         const now = new Date().toISOString();
-        appendIncident({ state, message, at: new Date(now).toLocaleTimeString(), createdAt: now });
+        if (incidentMatchesActiveFilters(state, now)) {
+          appendIncident({ state, message, at: new Date(now).toLocaleTimeString(), createdAt: now });
+        }
       }
     }
 
