@@ -119,3 +119,20 @@ class ExecutionHistoryPagination(BaseModel):
 class ExecutionHistoryResponse(BaseModel):
     data: list[SubmissionRunResponse]
     pagination: ExecutionHistoryPagination
+
+
+class DailyFailureCount(BaseModel):
+    day: str
+    count: int
+
+
+class ExecutionMetricsResponse(BaseModel):
+    window_days: int
+    total_runs: int
+    completed_runs: int
+    failed_runs: int
+    cancelled_runs: int
+    running_runs: int
+    success_rate: float
+    avg_duration_ms: int | None
+    failures_by_day: list[DailyFailureCount]

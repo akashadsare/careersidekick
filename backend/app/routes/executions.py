@@ -1,5 +1,6 @@
 import json
-from datetime import UTC, datetime
+from collections import defaultdict
+from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import StreamingResponse
@@ -9,8 +10,10 @@ from fastapi import Depends
 from ..db import get_db
 from ..db_models import RunStatus, SubmissionRun
 from ..models import (
+    DailyFailureCount,
     ExecutionHistoryPagination,
     ExecutionHistoryResponse,
+    ExecutionMetricsResponse,
     SubmissionRunDetailResponse,
     SubmissionRunResponse,
     SubmissionRunStatusUpdateRequest,
@@ -146,6 +149,51 @@ def list_runs_page(
             sort_direction='asc' if sort_direction == 'asc' else 'desc',
         ),
     )
+
+
+def _compute_execution_metrics(rows: list[SubmissionRun], window_days: int) -> ExecutionMetricsResponse:
+    total_runs = len(rows)
+    completed_runs = sum(1 for row in rows if row.run_status == RunStatus.COMPLETED)
+    failed_runs = sum(1 for row in rows if row.run_status == RunStatus.FAILED)
+    cancelled_runs = sum(1 for row in rows if row.run_status == RunStatus.CANCELLED)
+    running_runs = sum(1 for row in rows if row.run_status == RunStatus.RUNNING)
+
+    success_rate = round((completed_runs / total_runs) * 100, 2) if total_runs else 0.0
+
+    durations = [row.duration_ms for row in rows if row.duration_ms is not None]
+    avg_duration_ms = int(sum(durations) / len(durations)) if durations else None
+
+    failures_by_day_map: dict[str, int] = defaultdict(int)
+    for row in rows:
+        if row.run_status == RunStatus.FAILED and row.created_at is not None:
+            failures_by_day_map[row.created_at.date().isoformat()] += 1
+
+    failures_by_day = [
+        DailyFailureCount(day=day, count=count)
+        for day, count in sorted(failures_by_day_map.items())
+    ]
+
+    return ExecutionMetricsResponse(
+        window_days=window_days,
+        total_runs=total_runs,
+        completed_runs=completed_runs,
+        failed_runs=failed_runs,
+        cancelled_runs=cancelled_runs,
+        running_runs=running_runs,
+        success_rate=success_rate,
+        avg_duration_ms=avg_duration_ms,
+        failures_by_day=failures_by_day,
+    )
+
+
+@router.get('/metrics', response_model=ExecutionMetricsResponse)
+def get_execution_metrics(
+    days: int = Query(default=30, ge=1, le=180),
+    db: Session = Depends(get_db),
+) -> ExecutionMetricsResponse:
+    window_start = datetime.now(UTC) - timedelta(days=days)
+    rows = db.query(SubmissionRun).filter(SubmissionRun.created_at >= window_start).all()
+    return _compute_execution_metrics(rows, window_days=days)
 
 
 @router.get('/{run_id}', response_model=SubmissionRunDetailResponse)

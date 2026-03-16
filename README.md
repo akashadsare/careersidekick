@@ -115,6 +115,7 @@ Main prototype endpoints:
 - `POST /api/v1/executions/run-sse`
 - `GET /api/v1/executions` (supports `status`, `draft_id`, `limit`, `offset` query filters)
 - `GET /api/v1/executions/page` (supports `status`, `draft_id`, `limit`, `cursor`, `sort_direction`)
+- `GET /api/v1/executions/metrics` (supports `days`, default `30`)
 - `GET /api/v1/executions/{id}`
 - `PATCH /api/v1/executions/{id}/status`
 - `GET /api/v1/candidates`, `POST /api/v1/candidates`
@@ -213,6 +214,7 @@ Current test scope includes:
 - execution timing transition behavior in `tests/test_execution_timing.py`
 - execution status transition and pagination contract checks in `tests/test_executions_api.py`
 - run-sse stream event contract checks in `tests/test_run_sse_contract.py`
+- execution metrics aggregation checks in `tests/test_execution_metrics.py`
 
 ## Continuous integration
 
