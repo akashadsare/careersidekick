@@ -10,6 +10,18 @@ describe('LiveRunViewer', () => {
   });
 
   it('renders pagination total count and formats durations in history and details', async () => {
+    const metricsPayload = {
+      window_days: 30,
+      total_runs: 42,
+      completed_runs: 30,
+      failed_runs: 8,
+      cancelled_runs: 2,
+      running_runs: 2,
+      success_rate: 71.43,
+      avg_duration_ms: 2200,
+      failures_by_day: [{ day: '2026-03-16', count: 3 }],
+    };
+
     const pagePayload = {
       data: [
         {
@@ -52,6 +64,14 @@ describe('LiveRunViewer', () => {
         } as Response;
       }
 
+      if (url.includes('/api/v1/executions/metrics')) {
+        return {
+          ok: true,
+          json: async () => metricsPayload,
+          status: 200,
+        } as Response;
+      }
+
       if (url.includes('/api/v1/executions/1')) {
         return {
           ok: true,
@@ -72,6 +92,7 @@ describe('LiveRunViewer', () => {
     render(LiveRunViewer);
 
     await screen.findByText(/Total:\s*42/);
+    await screen.findByText('71.43%');
     expect(screen.getByText('1.3 s')).toBeTruthy();
 
     const runButton = screen.getByRole('button', { name: /tf-1/i });
@@ -82,6 +103,18 @@ describe('LiveRunViewer', () => {
   });
 
   it('rolls back optimistic status update when API update fails', async () => {
+    const metricsPayload = {
+      window_days: 30,
+      total_runs: 1,
+      completed_runs: 1,
+      failed_runs: 0,
+      cancelled_runs: 0,
+      running_runs: 0,
+      success_rate: 100,
+      avg_duration_ms: 2000,
+      failures_by_day: [],
+    };
+
     const pagePayload = {
       data: [
         {
@@ -119,6 +152,14 @@ describe('LiveRunViewer', () => {
         return {
           ok: true,
           json: async () => pagePayload,
+          status: 200,
+        } as Response;
+      }
+
+      if (url.includes('/api/v1/executions/metrics')) {
+        return {
+          ok: true,
+          json: async () => metricsPayload,
           status: 200,
         } as Response;
       }
@@ -185,6 +226,7 @@ describe('LiveRunViewer', () => {
     };
 
     let pageCalls = 0;
+    let metricsCalls = 0;
 
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
@@ -205,6 +247,38 @@ describe('LiveRunViewer', () => {
               sort_direction: 'desc',
             },
           }),
+          status: 200,
+        } as Response;
+      }
+
+      if (url.includes('/api/v1/executions/metrics')) {
+        metricsCalls += 1;
+        const payload = metricsCalls === 1
+          ? {
+              window_days: 30,
+              total_runs: 1,
+              completed_runs: 0,
+              failed_runs: 0,
+              cancelled_runs: 0,
+              running_runs: 1,
+              success_rate: 0,
+              avg_duration_ms: null,
+              failures_by_day: [],
+            }
+          : {
+              window_days: 30,
+              total_runs: 1,
+              completed_runs: 1,
+              failed_runs: 0,
+              cancelled_runs: 0,
+              running_runs: 0,
+              success_rate: 100,
+              avg_duration_ms: 3000,
+              failures_by_day: [],
+            };
+        return {
+          ok: true,
+          json: async () => payload,
           status: 200,
         } as Response;
       }
@@ -247,6 +321,7 @@ describe('LiveRunViewer', () => {
     await fireEvent.click(setCompletedButton);
 
     await screen.findByText('3.0 s');
+    await screen.findByText('100%');
     expect(runButton.textContent).toContain('completed');
     expect(screen.queryByText('Status update failed: 500')).toBeNull();
   });

@@ -33,6 +33,18 @@
     result_json: Record<string, unknown> | null;
   };
 
+  type ExecutionMetrics = {
+    window_days: number;
+    total_runs: number;
+    completed_runs: number;
+    failed_runs: number;
+    cancelled_runs: number;
+    running_runs: number;
+    success_rate: number;
+    avg_duration_ms: number | null;
+    failures_by_day: Array<{ day: string; count: number }>;
+  };
+
   let runHistory: RunHistory[] = [];
   let selectedRun: RunDetail | null = null;
   let filterStatus = '';
@@ -45,6 +57,10 @@
   let totalCount = 0;
   let cursorStack: Array<number | null> = [null];
   let statusUpdating = false;
+  let metricsLoading = false;
+  let metricsWindowDays = '30';
+  let metrics: ExecutionMetrics | null = null;
+  let metricsError = '';
 
   function statusClass(status: string): string {
     if (status === 'completed') return 'status completed';
@@ -64,6 +80,24 @@
     const minutes = Math.floor(seconds / 60);
     const remSeconds = Math.floor(seconds % 60);
     return `${minutes}m ${remSeconds}s`;
+  }
+
+  async function loadMetrics() {
+    metricsLoading = true;
+    metricsError = '';
+    try {
+      const params = new URLSearchParams();
+      if (metricsWindowDays) params.set('days', metricsWindowDays);
+      const res = await fetch(`${API_BASE}/api/v1/executions/metrics?${params.toString()}`);
+      if (!res.ok) {
+        throw new Error(`Metrics load failed: ${res.status}`);
+      }
+      metrics = await res.json();
+    } catch (e) {
+      metricsError = e instanceof Error ? e.message : 'Unknown error';
+    } finally {
+      metricsLoading = false;
+    }
   }
 
   async function loadRunHistory() {
@@ -149,6 +183,7 @@
       }
       await loadRunDetail(selectedRun.id);
       await loadRunHistory();
+      await loadMetrics();
     } catch (e) {
       error = e instanceof Error ? e.message : 'Unknown error';
       selectedRun = previousSelected;
@@ -217,6 +252,7 @@
               }
               running = false;
               await loadRunHistory();
+              await loadMetrics();
             }
           } catch {
             // Ignore non-JSON chunks.
@@ -231,6 +267,7 @@
 
   onMount(async () => {
     await loadRunHistory();
+    await loadMetrics();
   });
 </script>
 
@@ -339,6 +376,72 @@
   <div class="card result">
     <h3>Result JSON</h3>
     <pre>{resultJson || 'No result yet.'}</pre>
+  </div>
+
+  <div class="card result">
+    <h3>Execution metrics</h3>
+    <div class="toolbar compact">
+      <label>
+        Window (days)
+        <input class="input" bind:value={metricsWindowDays} placeholder="30" />
+      </label>
+      <button class="btn" on:click={loadMetrics} disabled={metricsLoading}>
+        {metricsLoading ? 'Loading metrics...' : 'Refresh metrics'}
+      </button>
+    </div>
+
+    {#if metricsError}
+      <p class="error">{metricsError}</p>
+    {/if}
+
+    {#if metrics}
+      <div class="metrics-grid">
+        <div class="timeline-item card">
+          <p><strong>Total runs</strong></p>
+          <p class="muted">{metrics.total_runs}</p>
+        </div>
+        <div class="timeline-item card">
+          <p><strong>Success rate</strong></p>
+          <p class="muted">{metrics.success_rate}%</p>
+        </div>
+        <div class="timeline-item card">
+          <p><strong>Avg duration</strong></p>
+          <p class="muted">{formatDuration(metrics.avg_duration_ms)}</p>
+        </div>
+        <div class="timeline-item card">
+          <p><strong>Running</strong></p>
+          <p class="muted">{metrics.running_runs}</p>
+        </div>
+        <div class="timeline-item card">
+          <p><strong>Failed</strong></p>
+          <p class="muted">{metrics.failed_runs}</p>
+        </div>
+        <div class="timeline-item card">
+          <p><strong>Cancelled</strong></p>
+          <p class="muted">{metrics.cancelled_runs}</p>
+        </div>
+      </div>
+
+      <h4>Failures by day</h4>
+      {#if metrics.failures_by_day.length === 0}
+        <p class="muted">No failures in selected window.</p>
+      {:else}
+        <div class="history-table">
+          <div class="row header metrics-row">
+            <span>Day</span>
+            <span>Count</span>
+          </div>
+          {#each metrics.failures_by_day as bucket}
+            <div class="row metrics-row">
+              <span>{bucket.day}</span>
+              <span>{bucket.count}</span>
+            </div>
+          {/each}
+        </div>
+      {/if}
+    {:else if !metricsLoading}
+      <p class="muted">No metrics loaded yet.</p>
+    {/if}
   </div>
 
   <div class="card result">
@@ -452,6 +555,12 @@
     margin-top: 14px;
   }
 
+  .toolbar.compact {
+    margin-top: 8px;
+    align-items: end;
+    flex-wrap: wrap;
+  }
+
   .filters {
     margin-top: 10px;
     padding: 10px;
@@ -555,6 +664,18 @@
     margin-bottom: 10px;
   }
 
+  .metrics-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+    margin: 10px 0;
+  }
+
+  .metrics-row {
+    grid-template-columns: 1fr 90px;
+    cursor: default;
+  }
+
   .timeline-item {
     padding: 10px;
   }
@@ -574,6 +695,10 @@
     }
 
     .row {
+      grid-template-columns: 1fr;
+    }
+
+    .metrics-grid {
       grid-template-columns: 1fr;
     }
   }
