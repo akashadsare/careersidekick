@@ -1,0 +1,255 @@
+import json
+from datetime import UTC, datetime
+
+from fastapi import APIRouter, HTTPException, Query
+from fastapi.responses import StreamingResponse
+from sqlalchemy.orm import Session
+from fastapi import Depends
+
+from ..db import get_db
+from ..db_models import RunStatus, SubmissionRun
+from ..models import (
+    ExecutionHistoryPagination,
+    ExecutionHistoryResponse,
+    SubmissionRunDetailResponse,
+    SubmissionRunResponse,
+    SubmissionRunStatusUpdateRequest,
+    SubmissionRunStatusUpdateResponse,
+    TinyFishRunRequest,
+)
+from ..services.tinyfish_client import stream_tinyfish_sse
+
+router = APIRouter()
+
+TERMINAL_RUN_STATUSES = {RunStatus.COMPLETED, RunStatus.FAILED, RunStatus.CANCELLED}
+
+
+def _apply_status_timestamps(run: SubmissionRun, target: RunStatus, now: datetime | None = None) -> None:
+    current_time = now or datetime.now(UTC)
+    run.run_status = target
+
+    if target == RunStatus.RUNNING:
+        if run.started_at is None:
+            run.started_at = current_time
+        # A resumed run should not carry terminal timestamps from a previous attempt.
+        run.finished_at = None
+        run.duration_ms = None
+        return
+
+    if target in TERMINAL_RUN_STATUSES:
+        if run.finished_at is None:
+            run.finished_at = current_time
+        if run.started_at is not None:
+            delta_ms = int((run.finished_at - run.started_at).total_seconds() * 1000)
+            run.duration_ms = max(delta_ms, 0)
+
+
+@router.get('', response_model=list[SubmissionRunResponse])
+def list_runs(
+    status: str | None = Query(default=None),
+    draft_id: int | None = Query(default=None),
+    limit: int = Query(default=100, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
+    db: Session = Depends(get_db),
+) -> list[SubmissionRunResponse]:
+    query = db.query(SubmissionRun)
+
+    if status:
+        try:
+            query = query.filter(SubmissionRun.run_status == RunStatus(status))
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail='invalid status filter') from exc
+
+    if draft_id is not None:
+        query = query.filter(SubmissionRun.draft_id == draft_id)
+
+    rows = query.order_by(SubmissionRun.id.desc()).offset(offset).limit(limit).all()
+    return [
+        SubmissionRunResponse(
+            id=row.id,
+            draft_id=row.draft_id,
+            tinyfish_run_id=row.tinyfish_run_id,
+            run_status=row.run_status.value,
+            started_at=row.started_at,
+            finished_at=row.finished_at,
+            duration_ms=row.duration_ms,
+            streaming_url=row.streaming_url,
+            error_message=row.error_message,
+            created_at=row.created_at,
+        )
+        for row in rows
+    ]
+
+
+@router.get('/page', response_model=ExecutionHistoryResponse)
+def list_runs_page(
+    status: str | None = Query(default=None),
+    draft_id: int | None = Query(default=None),
+    limit: int = Query(default=25, ge=1, le=200),
+    cursor: int | None = Query(default=None),
+    sort_direction: str = Query(default='desc'),
+    db: Session = Depends(get_db),
+) -> ExecutionHistoryResponse:
+    if sort_direction not in ('asc', 'desc'):
+        raise HTTPException(status_code=400, detail='invalid sort_direction; use asc or desc')
+
+    query = db.query(SubmissionRun)
+
+    if status:
+        try:
+            query = query.filter(SubmissionRun.run_status == RunStatus(status))
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail='invalid status filter') from exc
+
+    if draft_id is not None:
+        query = query.filter(SubmissionRun.draft_id == draft_id)
+
+    total_count = query.count()
+
+    if cursor is not None:
+        if sort_direction == 'desc':
+            query = query.filter(SubmissionRun.id < cursor)
+        else:
+            query = query.filter(SubmissionRun.id > cursor)
+
+    order_clause = SubmissionRun.id.desc() if sort_direction == 'desc' else SubmissionRun.id.asc()
+    rows = query.order_by(order_clause).limit(limit + 1).all()
+
+    has_more = len(rows) > limit
+    page_rows = rows[:limit]
+    next_cursor = page_rows[-1].id if has_more and page_rows else None
+
+    data = [
+        SubmissionRunResponse(
+            id=row.id,
+            draft_id=row.draft_id,
+            tinyfish_run_id=row.tinyfish_run_id,
+            run_status=row.run_status.value,
+            started_at=row.started_at,
+            finished_at=row.finished_at,
+            duration_ms=row.duration_ms,
+            streaming_url=row.streaming_url,
+            error_message=row.error_message,
+            created_at=row.created_at,
+        )
+        for row in page_rows
+    ]
+
+    return ExecutionHistoryResponse(
+        data=data,
+        pagination=ExecutionHistoryPagination(
+            limit=limit,
+            cursor=cursor,
+            next_cursor=next_cursor,
+            has_more=has_more,
+            total_count=total_count,
+            sort_direction='asc' if sort_direction == 'asc' else 'desc',
+        ),
+    )
+
+
+@router.get('/{run_id}', response_model=SubmissionRunDetailResponse)
+def get_run(run_id: int, db: Session = Depends(get_db)) -> SubmissionRunDetailResponse:
+    row = db.get(SubmissionRun, run_id)
+    if not row:
+        raise HTTPException(status_code=404, detail='run not found')
+
+    return SubmissionRunDetailResponse(
+        id=row.id,
+        draft_id=row.draft_id,
+        tinyfish_run_id=row.tinyfish_run_id,
+        run_status=row.run_status.value,
+        started_at=row.started_at,
+        finished_at=row.finished_at,
+        duration_ms=row.duration_ms,
+        streaming_url=row.streaming_url,
+        error_message=row.error_message,
+        created_at=row.created_at,
+        result_json=row.result_json,
+    )
+
+
+@router.patch('/{run_id}/status', response_model=SubmissionRunStatusUpdateResponse)
+def update_run_status(
+    run_id: int,
+    payload: SubmissionRunStatusUpdateRequest,
+    db: Session = Depends(get_db),
+) -> SubmissionRunStatusUpdateResponse:
+    row = db.get(SubmissionRun, run_id)
+    if not row:
+        raise HTTPException(status_code=404, detail='run not found')
+
+    current = row.run_status
+    target = RunStatus(payload.run_status)
+
+    allowed_transitions: dict[RunStatus, set[RunStatus]] = {
+        RunStatus.RUNNING: {RunStatus.RUNNING, RunStatus.COMPLETED, RunStatus.FAILED, RunStatus.CANCELLED},
+        RunStatus.COMPLETED: {RunStatus.COMPLETED},
+        RunStatus.FAILED: {RunStatus.FAILED, RunStatus.RUNNING},
+        RunStatus.CANCELLED: {RunStatus.CANCELLED, RunStatus.RUNNING},
+    }
+
+    if target not in allowed_transitions[current]:
+        raise HTTPException(
+            status_code=409,
+            detail=f'invalid transition from {current.value} to {target.value}',
+        )
+
+    _apply_status_timestamps(row, target)
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+
+    return SubmissionRunStatusUpdateResponse(id=row.id, run_status=row.run_status.value)
+
+
+@router.post('/run-sse')
+async def run_sse(req: TinyFishRunRequest, db: Session = Depends(get_db)) -> StreamingResponse:
+    payload: dict[str, object] = {
+        'url': req.url,
+        'goal': req.goal,
+        'browser_profile': req.browser_profile,
+    }
+    if req.proxy_config:
+        payload['proxy_config'] = req.proxy_config
+
+    run = SubmissionRun(draft_id=req.draft_id, run_status=RunStatus.RUNNING, started_at=datetime.now(UTC))
+    db.add(run)
+    db.commit()
+    db.refresh(run)
+
+    async def tracked_stream():
+        async for line in stream_tinyfish_sse(payload):
+            if line.startswith('data: '):
+                try:
+                    event = json.loads(line[6:].strip())
+                    if event.get('type') == 'STARTED' and event.get('runId'):
+                        run.tinyfish_run_id = event['runId']
+                        db.add(run)
+                        db.commit()
+                    elif event.get('type') == 'STREAMING_URL' and event.get('streamingUrl'):
+                        run.streaming_url = event['streamingUrl']
+                        db.add(run)
+                        db.commit()
+                    elif event.get('type') == 'COMPLETE':
+                        status = event.get('status')
+                        target = RunStatus.COMPLETED if status == 'COMPLETED' else RunStatus.FAILED
+                        _apply_status_timestamps(run, target)
+                        run.result_json = event.get('resultJson')
+                        if event.get('error'):
+                            run.error_message = event['error'].get('message')
+                        db.add(run)
+                        db.commit()
+                except Exception:
+                    pass
+            yield line
+
+    return StreamingResponse(
+        tracked_stream(),
+        media_type='text/event-stream',
+        headers={
+            'Cache-Control': 'no-cache',
+            'Connection': 'keep-alive',
+            'X-Execution-Id': str(run.id),
+        },
+    )
