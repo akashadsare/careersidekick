@@ -492,3 +492,96 @@ class PackageGenerateResponse(BaseModel):
         description="Questions flagged for manual review"
     )
     created_at: datetime = Field(description="When package was generated")
+
+
+# Application Approval Models (M1.6)
+
+
+class ApprovalScreenRequest(BaseModel):
+    """Request to retrieve draft for approval screen."""
+
+    draft_id: int = Field(..., description="ApplicationDraft ID")
+
+
+class AnswerForApproval(BaseModel):
+    """Answer with editable content for approval screen."""
+
+    question: str = Field(..., description="Screening question")
+    answer: str = Field(..., description="Current answer (editable)")
+    provenance: str = Field(description="Answer source")
+    question_id: int | None = None
+
+
+class ApprovalScreenResponse(BaseModel):
+    """Response with full draft for user approval."""
+
+    draft_id: int
+    candidate_id: int
+    candidate_name: str
+    job_id: int
+    job_title: str
+    company_name: str
+    fit_score: int
+    cover_note: str = Field(description="Editable cover note")
+    answers: list[AnswerForApproval]
+    needs_review_flags: list[NeedsReviewFlag]
+    status: Literal['draft', 'approved', 'submitted', 'failed']
+    created_at: datetime
+
+
+class EditAnswerRequest(BaseModel):
+    """Request to edit a single answer in draft."""
+
+    question: str
+    updated_answer: str = Field(..., min_length=1)
+
+
+class UpdateDraftRequest(BaseModel):
+    """Request to update answers and cover note in draft."""
+
+    answers: list[AnswerForApproval] = Field(..., description="Updated answers with edits")
+    cover_note: str = Field(..., description="Updated cover note")
+
+
+class UpdateDraftResponse(BaseModel):
+    """Response after updating draft."""
+
+    draft_id: int
+    candidate_id: int
+    job_id: int
+    answers_count: int
+    status: Literal['draft', 'approved', 'submitted', 'failed']
+    updated_at: datetime
+
+
+class ApproveRequest(BaseModel):
+    """Request to approve draft."""
+
+    draft_id: int = Field(..., description="ApplicationDraft ID")
+
+
+class ApprovalSnapshot(BaseModel):
+    """Approval snapshot details."""
+
+    draft_id: int
+    candidate_id: int
+    job_id: int
+    fit_score: int
+    approved_at: datetime
+    snapshot_s3_key: str | None = None
+
+
+class ApproveResponse(BaseModel):
+    """Response after approving draft."""
+
+    draft_id: int
+    status: Literal['draft', 'approved', 'submitted', 'failed']
+    approved_at: datetime
+    snapshot_s3_key: str | None = Field(None, description="S3 key for approved package snapshot")
+
+
+class RejectRequest(BaseModel):
+    """Request to reject/request revisions for draft."""
+
+    draft_id: int = Field(..., description="ApplicationDraft ID")
+    reason: str = Field(..., min_length=5, description="Reason for rejection (e.g., needs better cover letter)")
