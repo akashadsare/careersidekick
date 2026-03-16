@@ -5,6 +5,7 @@ import DashboardPage from './+page.svelte';
 
 describe('DashboardPage', () => {
   beforeEach(() => {
+    localStorage.clear();
     vi.restoreAllMocks();
   });
 
@@ -192,5 +193,69 @@ describe('DashboardPage', () => {
     render(DashboardPage);
 
     await screen.findByText('Metrics load failed: 500');
+  });
+
+  it('restores persisted dashboard preferences from localStorage', async () => {
+    localStorage.setItem(
+      'careersidekick_dashboard_prefs',
+      JSON.stringify({
+        days: '14',
+        statusFilter: 'running',
+        successAlertThreshold: '90',
+      }),
+    );
+
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes('/api/v1/executions/metrics')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            window_days: 14,
+            total_runs: 2,
+            completed_runs: 1,
+            failed_runs: 1,
+            cancelled_runs: 0,
+            running_runs: 0,
+            success_rate: 50,
+            avg_duration_ms: 1200,
+            failures_by_day: [{ day: '2026-03-16', count: 1 }],
+          }),
+        } as Response;
+      }
+      if (url.includes('/api/v1/executions/page')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            data: [],
+            pagination: {
+              limit: 8,
+              cursor: null,
+              next_cursor: null,
+              has_more: false,
+              total_count: 0,
+              sort_direction: 'desc',
+            },
+          }),
+        } as Response;
+      }
+      return {
+        ok: false,
+        status: 404,
+        json: async () => ({}),
+      } as Response;
+    });
+
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(DashboardPage);
+
+    await screen.findByText('Success rate 50% is below threshold 90%.');
+
+    const allUrls = fetchMock.mock.calls.map((call) => String(call[0]));
+    expect(allUrls.some((url) => url.includes('/api/v1/executions/metrics?days=14'))).toBe(true);
+    expect(allUrls.some((url) => url.includes('/api/v1/executions/page?') && url.includes('status=running'))).toBe(true);
   });
 });

@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
 
   const API_BASE = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000';
+  const DASHBOARD_PREFS_KEY = 'careersidekick_dashboard_prefs';
 
   type Metrics = {
     window_days: number;
@@ -31,6 +32,7 @@
   let successAlertThreshold = '80';
   let loading = false;
   let error = '';
+  let prefsReady = false;
 
   $: parsedSuccessThreshold = Number(successAlertThreshold);
   $: hasValidThreshold = Number.isFinite(parsedSuccessThreshold) && parsedSuccessThreshold >= 0;
@@ -105,7 +107,42 @@
     }
   }
 
+  function loadPrefs() {
+    if (typeof window === 'undefined') return;
+
+    try {
+      const raw = window.localStorage.getItem(DASHBOARD_PREFS_KEY);
+      if (!raw) return;
+      const parsed = JSON.parse(raw) as {
+        days?: string;
+        statusFilter?: '' | 'running' | 'completed' | 'failed' | 'cancelled';
+        successAlertThreshold?: string;
+      };
+
+      if (parsed.days) days = parsed.days;
+      if (parsed.statusFilter !== undefined) statusFilter = parsed.statusFilter;
+      if (parsed.successAlertThreshold) successAlertThreshold = parsed.successAlertThreshold;
+    } catch {
+      // Ignore malformed local storage values.
+    }
+  }
+
+  function savePrefs() {
+    if (typeof window === 'undefined') return;
+
+    const payload = {
+      days,
+      statusFilter,
+      successAlertThreshold,
+    };
+    window.localStorage.setItem(DASHBOARD_PREFS_KEY, JSON.stringify(payload));
+  }
+
+  $: if (prefsReady) savePrefs();
+
   onMount(async () => {
+    loadPrefs();
+    prefsReady = true;
     await loadDashboard();
   });
 </script>
