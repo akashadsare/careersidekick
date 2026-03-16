@@ -6,6 +6,14 @@
   const CONSECUTIVE_DEGRADATION_THRESHOLD = 3;
   const ALERT_MUTE_MINUTES = 10;
 
+  type AlertState = 'normal' | 'warning' | 'critical' | 'muted';
+
+  type IncidentEvent = {
+    state: 'warning' | 'critical' | 'muted' | 'recovered';
+    message: string;
+    at: string;
+  };
+
   type Metrics = {
     window_days: number;
     total_runs: number;
@@ -41,6 +49,8 @@
   let refreshTimer: ReturnType<typeof setInterval> | null = null;
   let lowSuccessStreak = 0;
   let mutedUntilEpochMs = 0;
+  let previousAlertState: AlertState = 'normal';
+  let incidentTimeline: IncidentEvent[] = [];
 
   $: parsedSuccessThreshold = Number(successAlertThreshold);
   $: hasValidThreshold = Number.isFinite(parsedSuccessThreshold) && parsedSuccessThreshold >= 0;
@@ -86,6 +96,45 @@
       .join(' ');
   }
 
+  function computeAlertState(currentMetrics: Metrics | null, streak: number): AlertState {
+    if (!hasValidThreshold || currentMetrics === null) return 'normal';
+    if (currentMetrics.success_rate >= parsedSuccessThreshold) return 'normal';
+    if (mutedUntilEpochMs > Date.now()) return 'muted';
+    if (streak >= CONSECUTIVE_DEGRADATION_THRESHOLD) return 'critical';
+    return 'warning';
+  }
+
+  function appendIncident(state: IncidentEvent['state'], message: string) {
+    incidentTimeline = [
+      {
+        state,
+        message,
+        at: new Date().toLocaleTimeString(),
+      },
+      ...incidentTimeline,
+    ].slice(0, 20);
+  }
+
+  function recordAlertTransition(nextState: AlertState) {
+    if (nextState === previousAlertState) return;
+
+    if (nextState === 'normal' && previousAlertState !== 'normal') {
+      appendIncident('recovered', `Recovered from ${previousAlertState}.`);
+      previousAlertState = 'normal';
+      return;
+    }
+
+    if (nextState === 'warning') {
+      appendIncident('warning', 'Success rate dropped below threshold.');
+    } else if (nextState === 'critical') {
+      appendIncident('critical', 'Escalated to sustained degradation.');
+    } else if (nextState === 'muted') {
+      appendIncident('muted', 'Critical alerts are muted.');
+    }
+
+    previousAlertState = nextState;
+  }
+
   async function loadDashboard() {
     loading = true;
     error = '';
@@ -118,6 +167,9 @@
       } else {
         lowSuccessStreak = 0;
       }
+
+      const nextState = computeAlertState(metrics, lowSuccessStreak);
+      recordAlertTransition(nextState);
     } catch (e) {
       error = e instanceof Error ? e.message : 'Unknown error';
     } finally {
@@ -167,6 +219,7 @@
 
   function muteAlertsForTenMinutes() {
     mutedUntilEpochMs = Date.now() + ALERT_MUTE_MINUTES * 60 * 1000;
+    recordAlertTransition('muted');
   }
 
   function clearAutoRefreshTimer() {
@@ -336,6 +389,23 @@
       </div>
 
       <div class="card pane">
+        <h3>Incident Timeline</h3>
+        {#if incidentTimeline.length === 0}
+          <p class="muted">No alert transitions yet.</p>
+        {:else}
+          <div class="timeline-list">
+            {#each incidentTimeline as event}
+              <div class="timeline-row">
+                <span class="timeline-time">{event.at}</span>
+                <span class="timeline-state {event.state}">{event.state}</span>
+                <span>{event.message}</span>
+              </div>
+            {/each}
+          </div>
+        {/if}
+      </div>
+
+      <div class="card pane">
         <h3>Recent Runs</h3>
         {#if recentRuns.length === 0}
           <p class="muted">No run records yet.</p>
@@ -411,6 +481,58 @@
     flex-wrap: wrap;
   }
 
+  .timeline-list {
+    display: grid;
+    gap: 8px;
+    margin-top: 8px;
+  }
+
+  .timeline-row {
+    display: grid;
+    grid-template-columns: 88px 92px 1fr;
+    gap: 8px;
+    align-items: center;
+    padding: 8px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--surface-soft);
+    font-size: 13px;
+  }
+
+  .timeline-time {
+    color: var(--muted);
+  }
+
+  .timeline-state {
+    text-transform: uppercase;
+    font-size: 11px;
+    letter-spacing: 0.02em;
+    font-weight: 700;
+    padding: 2px 6px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    width: fit-content;
+  }
+
+  .timeline-state.warning {
+    background: #fff7dd;
+    color: #8a6414;
+  }
+
+  .timeline-state.critical {
+    background: #fde8e8;
+    color: #a01818;
+  }
+
+  .timeline-state.muted {
+    background: #ececec;
+    color: #4b4b4b;
+  }
+
+  .timeline-state.recovered {
+    background: #e8f6e8;
+    color: #1f6b36;
+  }
   .metrics-grid {
     margin-top: 14px;
     display: grid;
@@ -435,7 +557,7 @@
   .layout {
     margin-top: 14px;
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: 1fr 1fr 1fr;
     gap: 12px;
   }
 
@@ -523,6 +645,10 @@
 
     .metrics-row,
     .run-row {
+      grid-template-columns: 1fr;
+    }
+
+    .timeline-row {
       grid-template-columns: 1fr;
     }
   }
