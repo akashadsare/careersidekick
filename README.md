@@ -1,5 +1,7 @@
 # CareerSidekick
 
+[![CI](https://github.com/akashadsare/careersidekick/actions/workflows/ci.yml/badge.svg)](https://github.com/akashadsare/careersidekick/actions/workflows/ci.yml)
+
 CareerSidekick is a minimal, testing-first prototype for a full CareerOps platform.
 
 Tagline: **Your trusty job-hunting buddy.**
@@ -209,3 +211,10 @@ Current test scope includes:
 
 - execution timing transition behavior in `tests/test_execution_timing.py`
 - execution status transition and pagination contract checks in `tests/test_executions_api.py`
+
+## Continuous integration
+
+GitHub Actions runs on each push and pull request:
+
+- backend: dependency install + `pytest -q`
+- frontend: dependency install + `npm run check` + `npm run test`
