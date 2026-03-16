@@ -148,6 +148,8 @@ npm install
 npm run dev
 ```
 
+Deployment output is configured with `@sveltejs/adapter-node`.
+
 From repository root, shortcut scripts are also available:
 
 ```bash
