@@ -2,20 +2,28 @@
 
 [![CI](https://github.com/akashadsare/careersidekick/actions/workflows/ci.yml/badge.svg)](https://github.com/akashadsare/careersidekick/actions/workflows/ci.yml)
 
-CareerSidekick is a minimal, testing-first prototype for a full CareerOps platform.
+**CareerSidekick: Your trusty job-hunting buddy.**
 
-Tagline: **Your trusty job-hunting buddy.**
+Building CareerOps AI — a production-grade job application operations platform with human-in-the-loop approval, multi-portal ATS execution, and outcome analytics.
 
-This scaffold focuses on the hardest workflow screens first:
+**Current Phase:** Phase 0 (TinyFish validation) + Phase 1 (MVP workflow) in progress.  
+**Status:** Building candidate profile onboarding (M1.1) with resume upload, parsing, and answer library.
 
-1. Application Approval Panel
-2. Live TinyFish Run Viewer (SSE + streaming iframe)
+## Project Philosophy
+
+This scaffold prioritizes the **hardest half** of the workflow first:
+
+1. **Phase 0:** TinyFish portal integration and failure mode documentation
+2. **Phase 1:** Candidate onboarding → approval workflow → live submission → dashboard
+3. Phase 2+: Multi-portal coverage, analytics, agency features
 
 ## Why this structure
 
-- Frontend: **SvelteKit + TypeScript** for responsive, production-friendly UX.
-- Backend: **FastAPI** for Python-first orchestration and TinyFish integration.
-- Data infra: Postgres + Redis ready via docker compose.
+- **Frontend:** SvelteKit + TypeScript for responsive, production-friendly UX
+- **Backend:** FastAPI + SQLAlchemy for Python-first orchestration and TinyFish integration
+- **Data:** Postgres + Redis (via docker compose) for persistence and async jobs
+- **Testing:** Vitest (frontend), pytest (backend) — green before every push
+- **Docs First:** PRD, architecture, milestones, portal prompts, failure modes documented upfront
 
 ## Reference sources used
 
@@ -99,6 +107,7 @@ Current revisions:
 - `0001_initial` creates core domain tables
 - `0002_submission_run_timing` adds `started_at`, `finished_at`, `duration_ms` on submission runs
 - `0003_alert_incidents` adds persisted dashboard incident timeline events
+- `0004_resume_and_profile_expansion` adds resume upload, candidate profile fields, and answer library (M1.1)
 
 Create a new migration after schema changes:
 
@@ -106,25 +115,61 @@ Create a new migration after schema changes:
 alembic revision --autogenerate -m "describe change"
 ```
 
+Seed the answer library with 20+ common ATS questions:
+
+```bash
+cd backend
+source .venv/bin/activate
+python -m scripts.seed_answer_library
+```
+
 Backend health check:
 
 - `GET http://localhost:8000/health`
 
-Main prototype endpoints:
+## API Endpoints
 
-- `POST /api/v1/packages/preview`
-- `POST /api/v1/executions/run-sse`
+### Phase 0: TinyFish Portal Integration
+
+See [TINYFISH_PORTAL_PROMPTS.md](./TINYFISH_PORTAL_PROMPTS.md) for goal prompts and field mappings for Greenhouse, Lever, Workday, LinkedIn.
+
+See [PORTAL_FAILURE_MODES.md](./PORTAL_FAILURE_MODES.md) for documented failure modes and workarounds across portals.
+
+### Phase 1: Candidate Profile Onboarding (M1.1)
+
+**Candidate Profile Management:**
+- `POST /api/v1/candidates` — Create candidate profile (name, email, location, work auth, preferences)
+- `GET /api/v1/candidates/{candidate_id}` — Retrieve candidate profile
+- `PATCH /api/v1/candidates/{candidate_id}` — Update candidate profile fields
+
+**Resume Upload & Parsing (M1.1):**
+- `POST /api/v1/candidates/{candidate_id}/resumes` — Upload resume (PDF/DOCX), auto-parse to extracted fields
+- Returns parsed data: `name`, `email`, `phone`, `location`, `years_experience`, `skills`
+- First resume automatically set as primary and pre-populates candidate profile if fields empty
+
+**Answer Library (M1.1):**
+- `GET /api/v1/answer-library?category={category}&limit=50` — Get common ATS questions from library
+- Categories: `work_auth`, `experience`, `location`, `compensation`, `availability`, `education`, `culture`, `skills`, `compliance`
+- `GET /api/v1/candidates/{candidate_id}/answers` — Get all candidate answers to library questions
+- `POST /api/v1/candidates/{candidate_id}/answers` — Add/update candidate answer to a library question
+
+### Phase 1: Core Workflow
+
+**Submissions & Execution:**
+- `POST /api/v1/packages/preview` — Generate application package preview (fit score, answers, cover note)
+- `POST /api/v1/executions/run-sse` — Initiate TinyFish SSE run with streaming iframe URL
 - `GET /api/v1/executions` (supports `status`, `draft_id`, `limit`, `offset` query filters)
 - `GET /api/v1/executions/page` (supports `status`, `draft_id`, `limit`, `cursor`, `sort_direction`)
 - `GET /api/v1/executions/metrics` (supports `days`, default `30`)
 - `GET /api/v1/executions/incidents` (supports `limit`, optional `cursor`, optional `days`, optional `state`)
-- `POST /api/v1/executions/incidents`
-- `GET /api/v1/executions/{id}`
-- `PATCH /api/v1/executions/{id}/status`
-- `GET /api/v1/candidates`, `POST /api/v1/candidates`
-- `GET /api/v1/jobs`, `POST /api/v1/jobs`
-- `GET /api/v1/drafts`, `GET /api/v1/drafts/{id}`, `PATCH /api/v1/drafts/{id}`
-- `GET /api/v1/drafts/{id}/runs`
+- `POST /api/v1/executions/incidents` — Log incident event (warning, critical, recovered)
+- `GET /api/v1/executions/{id}` — Retrieve execution details
+- `PATCH /api/v1/executions/{id}/status` — Update execution status with state transitions
+
+**Jobs & Drafts:**
+- `GET /api/v1/jobs`, `POST /api/v1/jobs` — Job posting management
+- `GET /api/v1/drafts`, `GET /api/v1/drafts/{id}`, `PATCH /api/v1/drafts/{id}` — Application draft management
+- `GET /api/v1/drafts/{id}/runs` — Retrieve submission runs for a draft
 
 For migration-first deployments, set `AUTO_CREATE_SCHEMA=false` and run Alembic migrations at startup.
 

@@ -9,6 +9,7 @@ from .routes.drafts import router as draft_router
 from .routes.executions import router as execution_router
 from .routes.jobs import router as job_router
 from .routes.packages import router as package_router
+from .routes.profiles import router as profile_router
 
 app = FastAPI(title='CareerSidekick API', version='0.1.0')
 
@@ -35,6 +36,7 @@ def health() -> dict:
 
 app.include_router(package_router, prefix='/api/v1/packages', tags=['packages'])
 app.include_router(execution_router, prefix='/api/v1/executions', tags=['executions'])
+app.include_router(profile_router, prefix='/api/v1', tags=['profiles'])
 app.include_router(candidate_router, prefix='/api/v1/candidates', tags=['candidates'])
 app.include_router(job_router, prefix='/api/v1/jobs', tags=['jobs'])
 app.include_router(draft_router, prefix='/api/v1/drafts', tags=['drafts'])

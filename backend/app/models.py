@@ -98,6 +98,107 @@ class SubmissionRunDetailResponse(SubmissionRunResponse):
     result_json: dict | None
 
 
+# M1.1 — Candidate Profile Onboarding Models
+
+class ResumeParseData(BaseModel):
+    full_name: str | None = None
+    email: str | None = None
+    phone: str | None = None
+    location: str | None = None
+    years_experience: int | None = None
+    skills: list[str] | None = None
+    work_history: list[dict] | None = None
+    education: list[dict] | None = None
+
+
+class ResumeUploadResponse(BaseModel):
+    id: int
+    file_name: str
+    file_size_bytes: int
+    mime_type: str
+    s3_key: str
+    parsed_data: ResumeParseData | None
+    parser_used: str | None
+    parse_confidence: float | None
+    is_primary: bool
+    created_at: datetime
+
+
+class CandidateProfileCreateRequest(BaseModel):
+    full_name: str = Field(..., min_length=1)
+    email: str | None = None
+    phone: str | None = None
+    location: str | None = None
+    years_experience: int | None = None
+    work_authorization: str | None = None  # "US_CITIZEN", "GREEN_CARD", "NEED_SPONSORSHIP", etc.
+    remote_preference: str | None = None  # "REMOTE", "HYBRID", "ONSITE"
+    target_titles: list[str] | None = None
+    target_companies: list[str] | None = None
+    salary_floor_usd: int | None = None
+    linkedin_url: str | None = None
+
+
+class CandidateProfileResponse(BaseModel):
+    id: int
+    full_name: str
+    email: str | None
+    phone: str | None
+    location: str | None
+    years_experience: int | None
+    work_authorization: str | None
+    remote_preference: str | None
+    target_titles: list[str]
+    target_companies: list[str]
+    salary_floor_usd: int | None
+    linkedin_url: str | None
+    primary_resume_id: int | None
+    created_at: datetime
+    updated_at: datetime
+
+
+class CandidateProfileUpdateRequest(BaseModel):
+    full_name: str | None = None
+    email: str | None = None
+    phone: str | None = None
+    location: str | None = None
+    years_experience: int | None = None
+    work_authorization: str | None = None
+    remote_preference: str | None = None
+    target_titles: list[str] | None = None
+    target_companies: list[str] | None = None
+    salary_floor_usd: int | None = None
+    linkedin_url: str | None = None
+
+
+class AnswerLibraryQuestionResponse(BaseModel):
+    id: int
+    question_text: str
+    question_category: str
+    portal_types: list[str]
+    frequency_rank: int
+
+
+class CandidateAnswerResponse(BaseModel):
+    id: int
+    library_question_id: int
+    answer_text: str
+    is_custom: bool
+    created_at: datetime
+    updated_at: datetime
+
+
+class CandidateAnswerCreateRequest(BaseModel):
+    library_question_id: int
+    answer_text: str = Field(..., min_length=1)
+    is_custom: bool = False
+
+
+class CandidateAnswersListResponse(BaseModel):
+    answers: list[CandidateAnswerResponse]
+    total: int
+    library_questions: list[AnswerLibraryQuestionResponse]
+
+
 class SubmissionRunStatusUpdateRequest(BaseModel):
     run_status: Literal['running', 'completed', 'failed', 'cancelled']
 

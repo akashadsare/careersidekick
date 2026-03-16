@@ -35,10 +35,65 @@ class CandidateProfile(Base):
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     full_name: Mapped[str] = mapped_column(String(255), nullable=False)
     email: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    phone: Mapped[str | None] = mapped_column(String(20), nullable=True)
     location: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    years_experience: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    work_authorization: Mapped[str | None] = mapped_column(String(80), nullable=True)  # e.g., "US_CITIZEN", "GREEN_CARD", "NEED_SPONSORSHIP"
+    remote_preference: Mapped[str | None] = mapped_column(String(80), nullable=True)  # e.g., "REMOTE", "HYBRID", "ONSITE"
+    target_titles: Mapped[list[str]] = mapped_column(JSONB, nullable=False, default=list)  # e.g., ["Software Engineer", "Fullstack Engineer"]
+    target_companies: Mapped[list[str]] = mapped_column(JSONB, nullable=False, default=list)
+    salary_floor_usd: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    linkedin_url: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    primary_resume_id: Mapped[int | None] = mapped_column(ForeignKey('resumes.id', ondelete='SET NULL'), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC))
+
+    resumes: Mapped[list['Resume']] = relationship(back_populates='candidate', foreign_keys='Resume.candidate_id')
+    drafts: Mapped[list['ApplicationDraft']] = relationship(back_populates='candidate')
+    answers: Mapped[list['CandidateAnswer']] = relationship(back_populates='candidate')
+
+
+class Resume(Base):
+    __tablename__ = 'resumes'
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    candidate_id: Mapped[int] = mapped_column(ForeignKey('candidate_profiles.id', ondelete='CASCADE'))
+    file_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    s3_key: Mapped[str] = mapped_column(String(500), nullable=False)  # S3 path for file storage
+    file_size_bytes: Mapped[int] = mapped_column(Integer, nullable=False)
+    mime_type: Mapped[str] = mapped_column(String(80), nullable=False)  # application/pdf, application/vnd.openxmlformats-officedocument.wordprocessingml.document, etc.
+    parsed_data: Mapped[dict | None] = mapped_column(JSONB, nullable=True)  # extracted name, email, phone, skills, experience, etc.
+    parser_used: Mapped[str | None] = mapped_column(String(80), nullable=True)  # e.g., "affinda", "affinda_fallback"
+    parse_confidence: Mapped[float | None] = mapped_column(nullable=True)  # 0.0–1.0
+    is_primary: Mapped[bool] = mapped_column(nullable=False, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
 
-    drafts: Mapped[list['ApplicationDraft']] = relationship(back_populates='candidate')
+    candidate: Mapped[CandidateProfile] = relationship(back_populates='resumes', foreign_keys='Resume.candidate_id')
+
+
+class AnswerLibraryQuestion(Base):
+    __tablename__ = 'answer_library_questions'
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    question_text: Mapped[str] = mapped_column(Text, nullable=False)
+    question_category: Mapped[str] = mapped_column(String(80), nullable=False)  # e.g., "work_auth", "experience", "culture", "technical"
+    portal_types: Mapped[list[str]] = mapped_column(JSONB, nullable=False, default=list)  # e.g., ["greenhouse", "lever", "workday"]
+    frequency_rank: Mapped[int] = mapped_column(Integer, nullable=False, default=999)  # 1 = most common; helps prioritize
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+
+
+class CandidateAnswer(Base):
+    __tablename__ = 'candidate_answers'
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    candidate_id: Mapped[int] = mapped_column(ForeignKey('candidate_profiles.id', ondelete='CASCADE'))
+    library_question_id: Mapped[int] = mapped_column(ForeignKey('answer_library_questions.id', ondelete='CASCADE'))
+    answer_text: Mapped[str] = mapped_column(Text, nullable=False)
+    is_custom: Mapped[bool] = mapped_column(nullable=False, default=False)  # True if user provided custom answer vs. using template
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC))
+
+    candidate: Mapped[CandidateProfile] = relationship(back_populates='answers')
 
 
 class JobPosting(Base):
