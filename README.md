@@ -117,7 +117,7 @@ Main prototype endpoints:
 - `GET /api/v1/executions` (supports `status`, `draft_id`, `limit`, `offset` query filters)
 - `GET /api/v1/executions/page` (supports `status`, `draft_id`, `limit`, `cursor`, `sort_direction`)
 - `GET /api/v1/executions/metrics` (supports `days`, default `30`)
-- `GET /api/v1/executions/incidents` (supports `limit`, optional `days`, optional `state`)
+- `GET /api/v1/executions/incidents` (supports `limit`, optional `cursor`, optional `days`, optional `state`)
 - `POST /api/v1/executions/incidents`
 - `GET /api/v1/executions/{id}`
 - `PATCH /api/v1/executions/{id}/status`

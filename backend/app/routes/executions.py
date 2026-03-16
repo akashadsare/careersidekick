@@ -210,11 +210,15 @@ def get_execution_metrics(
 @router.get('/incidents', response_model=list[IncidentEventResponse])
 def list_incidents(
     limit: int = Query(default=20, ge=1, le=200),
+    cursor: int | None = Query(default=None, ge=1),
     days: int | None = Query(default=None, ge=1, le=180),
     state: str | None = Query(default=None),
     db: Session = Depends(get_db),
 ) -> list[IncidentEventResponse]:
     query = db.query(AlertIncident)
+
+    if cursor is not None:
+        query = query.filter(AlertIncident.id < cursor)
 
     if days is not None:
         window_start = datetime.now(UTC) - timedelta(days=days)

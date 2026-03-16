@@ -5,6 +5,7 @@
   const DASHBOARD_PREFS_KEY = 'careersidekick_dashboard_prefs';
   const CONSECUTIVE_DEGRADATION_THRESHOLD = 3;
   const ALERT_MUTE_MINUTES = 10;
+  const INCIDENT_PAGE_SIZE = 20;
 
   type AlertState = 'normal' | 'warning' | 'critical' | 'muted';
 
@@ -53,6 +54,8 @@
   let mutedUntilEpochMs = 0;
   let previousAlertState: AlertState = 'normal';
   let incidentTimeline: IncidentEvent[] = [];
+  let incidentHasMore = false;
+  let incidentLoadingMore = false;
 
   $: parsedSuccessThreshold = Number(successAlertThreshold);
   $: hasValidThreshold = Number.isFinite(parsedSuccessThreshold) && parsedSuccessThreshold >= 0;
@@ -107,7 +110,7 @@
   }
 
   function appendIncident(event: IncidentEvent) {
-    incidentTimeline = [event, ...incidentTimeline].slice(0, 20);
+    incidentTimeline = [event, ...incidentTimeline].slice(0, 100);
   }
 
   function toAlertState(state: IncidentEvent['state']): AlertState {
@@ -117,14 +120,24 @@
     return 'normal';
   }
 
-  async function loadIncidents() {
+  async function loadIncidents(options: { append?: boolean; cursor?: number | null } = {}) {
+    const append = options.append ?? false;
+    const cursor = options.cursor ?? null;
+
+    if (append) {
+      incidentLoadingMore = true;
+    }
+
     try {
-      const params = new URLSearchParams({ limit: '20' });
+      const params = new URLSearchParams({ limit: String(INCIDENT_PAGE_SIZE) });
       if (days) {
         params.set('days', days);
       }
       if (incidentStateFilter) {
         params.set('state', incidentStateFilter);
+      }
+      if (cursor !== null) {
+        params.set('cursor', String(cursor));
       }
 
       const response = await fetch(`${API_BASE}/api/v1/executions/incidents?${params.toString()}`);
@@ -139,19 +152,44 @@
         created_at: string;
       }>;
 
-      incidentTimeline = payload.map((event) => ({
+      const mapped = payload.map((event) => ({
         id: event.id,
         state: event.state,
         message: event.message,
         at: new Date(event.created_at).toLocaleTimeString(),
       }));
 
-      if (incidentTimeline.length > 0) {
+      incidentHasMore = payload.length === INCIDENT_PAGE_SIZE;
+
+      if (append) {
+        incidentTimeline = [...incidentTimeline, ...mapped];
+      } else {
+        incidentTimeline = mapped;
+      }
+
+      if (!append && incidentTimeline.length > 0) {
         previousAlertState = toAlertState(incidentTimeline[0].state);
       }
     } catch {
       // Incident hydration is best-effort and should not block dashboard loading.
+    } finally {
+      if (append) {
+        incidentLoadingMore = false;
+      }
     }
+  }
+
+  function loadOlderIncidents() {
+    if (!incidentHasMore || incidentLoadingMore) {
+      return;
+    }
+
+    const oldestIncidentId = incidentTimeline.at(-1)?.id;
+    if (oldestIncidentId === undefined) {
+      return;
+    }
+
+    void loadIncidents({ append: true, cursor: oldestIncidentId });
   }
 
   async function persistIncident(state: IncidentEvent['state'], message: string): Promise<void> {
@@ -339,7 +377,6 @@
   onMount(async () => {
     loadPrefs();
     prefsReady = true;
-    await loadIncidents();
     await loadDashboard();
   });
 
@@ -502,6 +539,12 @@
               </div>
             {/each}
           </div>
+
+          {#if incidentHasMore}
+            <button class="btn" on:click={loadOlderIncidents} disabled={incidentLoadingMore}>
+              {incidentLoadingMore ? 'Loading...' : 'Load older incidents'}
+            </button>
+          {/if}
         {/if}
       </div>
 

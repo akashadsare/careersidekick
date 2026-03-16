@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/svelte';
+import { fireEvent, render, screen, waitFor } from '@testing-library/svelte';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import DashboardPage from './+page.svelte';
@@ -471,12 +471,108 @@ describe('DashboardPage', () => {
     const incidentSelect = screen.getByRole('combobox', { name: 'Incident state' });
     await fireEvent.change(incidentSelect, { target: { value: 'muted' } });
 
-    const refreshButton = screen.getByRole('button', { name: 'Refresh' });
+    const refreshButton = screen.getByRole('button', { name: /Refresh|Refreshing.../ });
+    await waitFor(() => {
+      expect((refreshButton as HTMLButtonElement).disabled).toBe(false);
+    });
     await fireEvent.click(refreshButton);
 
     const incidentCalls = fetchMock.mock.calls
       .map((call) => String(call[0]))
       .filter((url) => url.includes('/api/v1/executions/incidents?'));
     expect(incidentCalls.some((url) => url.includes('state=muted'))).toBe(true);
+  });
+
+  it('loads older incidents using cursor pagination', async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes('/api/v1/executions/incidents')) {
+        if (url.includes('cursor=')) {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => [
+              {
+                id: 20,
+                state: 'warning',
+                message: 'Incident 20',
+                created_at: '2026-03-16T08:00:00Z',
+              },
+            ],
+          } as Response;
+        }
+
+        const firstPage = Array.from({ length: 20 }, (_, idx) => {
+          const id = 40 - idx;
+          return {
+            id,
+            state: 'warning',
+            message: `Incident ${id}`,
+            created_at: '2026-03-16T09:00:00Z',
+          };
+        });
+
+        return {
+          ok: true,
+          status: 200,
+          json: async () => firstPage,
+        } as Response;
+      }
+      if (url.includes('/api/v1/executions/metrics')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            window_days: 30,
+            total_runs: 10,
+            completed_runs: 9,
+            failed_runs: 1,
+            cancelled_runs: 0,
+            running_runs: 0,
+            success_rate: 90,
+            avg_duration_ms: 2000,
+            failures_by_day: [{ day: '2026-03-16', count: 1 }],
+          }),
+        } as Response;
+      }
+      if (url.includes('/api/v1/executions/page')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            data: [],
+            pagination: {
+              limit: 8,
+              cursor: null,
+              next_cursor: null,
+              has_more: false,
+              total_count: 0,
+              sort_direction: 'desc',
+            },
+          }),
+        } as Response;
+      }
+
+      return {
+        ok: false,
+        status: 404,
+        json: async () => ({}),
+      } as Response;
+    });
+
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(DashboardPage);
+
+    await screen.findByText('Incident Timeline');
+    const loadOlderButton = await screen.findByRole('button', { name: 'Load older incidents' });
+    await fireEvent.click(loadOlderButton);
+
+    await screen.findByText('Incident 20');
+
+    const incidentCalls = fetchMock.mock.calls
+      .map((call) => String(call[0]))
+      .filter((url) => url.includes('/api/v1/executions/incidents?'));
+    expect(incidentCalls.some((url) => url.includes('cursor=21'))).toBe(true);
   });
 });

@@ -25,6 +25,8 @@ class FakeQuery:
             self._rows = [row for row in self._rows if getattr(row, left_key) == right_value]
         elif operator == 'ge':
             self._rows = [row for row in self._rows if getattr(row, left_key) >= right_value]
+        elif operator == 'lt':
+            self._rows = [row for row in self._rows if getattr(row, left_key) < right_value]
         return self
 
     def order_by(self, _clause):
@@ -79,7 +81,7 @@ def test_list_incidents_returns_most_recent_first() -> None:
         ]
     )
 
-    response = list_incidents(limit=2, days=None, state=None, db=db)
+    response = list_incidents(limit=2, cursor=None, days=None, state=None, db=db)
 
     assert len(response) == 2
     assert response[0].id == 3
@@ -110,7 +112,7 @@ def test_list_incidents_filters_by_state() -> None:
         ]
     )
 
-    response = list_incidents(limit=20, days=None, state='critical', db=db)
+    response = list_incidents(limit=20, cursor=None, days=None, state='critical', db=db)
 
     assert len(response) == 2
     assert all(item.state == 'critical' for item in response)
@@ -131,7 +133,7 @@ def test_list_incidents_filters_by_days_window() -> None:
     )
     db = FakeSession(rows=[old, recent])
 
-    response = list_incidents(limit=20, days=1, state=None, db=db)
+    response = list_incidents(limit=20, cursor=None, days=1, state=None, db=db)
 
     assert len(response) == 1
     assert response[0].message == 'recent event'
@@ -141,7 +143,25 @@ def test_list_incidents_rejects_invalid_state_filter() -> None:
     db = FakeSession(rows=[])
 
     with pytest.raises(HTTPException) as exc:
-        list_incidents(limit=20, days=None, state='bad-state', db=db)
+        list_incidents(limit=20, cursor=None, days=None, state='bad-state', db=db)
 
     assert exc.value.status_code == 400
     assert exc.value.detail == 'invalid incident state filter'
+
+
+def test_list_incidents_supports_cursor_for_older_events() -> None:
+    db = FakeSession(
+        rows=[
+            _incident(1, IncidentState.WARNING, 'event-1'),
+            _incident(2, IncidentState.WARNING, 'event-2'),
+            _incident(3, IncidentState.WARNING, 'event-3'),
+            _incident(4, IncidentState.WARNING, 'event-4'),
+            _incident(5, IncidentState.WARNING, 'event-5'),
+        ]
+    )
+
+    response = list_incidents(limit=2, cursor=4, days=None, state=None, db=db)
+
+    assert len(response) == 2
+    assert response[0].id == 3
+    assert response[1].id == 2
