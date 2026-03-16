@@ -365,6 +365,77 @@ describe('DashboardPage', () => {
     expect(incidentCalls.some((url) => url.includes('days=14') && !url.includes('state='))).toBe(true);
   });
 
+  it('exposes keyboard hints in removable chip accessible names', async () => {
+    localStorage.setItem(
+      'careersidekick_dashboard_prefs',
+      JSON.stringify({
+        days: '14',
+        incidentStateFilter: 'critical',
+      }),
+    );
+
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes('/api/v1/executions/metrics')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            window_days: 14,
+            total_runs: 2,
+            completed_runs: 2,
+            failed_runs: 0,
+            cancelled_runs: 0,
+            running_runs: 0,
+            success_rate: 100,
+            avg_duration_ms: 1200,
+            failures_by_day: [],
+          }),
+        } as Response;
+      }
+      if (url.includes('/api/v1/executions/page')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            data: [],
+            pagination: {
+              limit: 8,
+              cursor: null,
+              next_cursor: null,
+              has_more: false,
+              total_count: 0,
+              sort_direction: 'desc',
+            },
+          }),
+        } as Response;
+      }
+      if (url.includes('/api/v1/executions/incidents')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => [],
+        } as Response;
+      }
+      return {
+        ok: false,
+        status: 404,
+        json: async () => ({}),
+      } as Response;
+    });
+
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(DashboardPage);
+
+    await screen.findByRole('button', {
+      name: /Reset incident window to default \(press Enter or Space\)/,
+    });
+    await screen.findByRole('button', {
+      name: /Clear incident state filter \(press Enter or Space\)/,
+    });
+  });
+
   it('resets the window chip back to the default 30-day scope', async () => {
     localStorage.setItem(
       'careersidekick_dashboard_prefs',

@@ -616,7 +616,7 @@
               >
                 <span>{days}d window</span>
                 <span class="filter-chip-dismiss" aria-hidden="true">x</span>
-                <span class="sr-only">Reset incident window to default</span>
+                <span class="sr-only">Reset incident window to default (press Enter or Space)</span>
               </button>
             {:else}
               <span class="filter-chip">{days}d window</span>
@@ -629,7 +629,7 @@
               >
                 <span>state: {incidentStateFilter}</span>
                 <span class="filter-chip-dismiss" aria-hidden="true">x</span>
-                <span class="sr-only">Clear incident state filter</span>
+                <span class="sr-only">Clear incident state filter (press Enter or Space)</span>
               </button>
             {:else}
               <span class="filter-chip">all states</span>
