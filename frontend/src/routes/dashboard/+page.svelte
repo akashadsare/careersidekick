@@ -3,6 +3,8 @@
 
   const API_BASE = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000';
   const DASHBOARD_PREFS_KEY = 'careersidekick_dashboard_prefs';
+  const CONSECUTIVE_DEGRADATION_THRESHOLD = 3;
+  const ALERT_MUTE_MINUTES = 10;
 
   type Metrics = {
     window_days: number;
@@ -37,11 +39,16 @@
   let error = '';
   let prefsReady = false;
   let refreshTimer: ReturnType<typeof setInterval> | null = null;
+  let lowSuccessStreak = 0;
+  let mutedUntilEpochMs = 0;
 
   $: parsedSuccessThreshold = Number(successAlertThreshold);
   $: hasValidThreshold = Number.isFinite(parsedSuccessThreshold) && parsedSuccessThreshold >= 0;
   $: showSuccessAlert =
     hasValidThreshold && metrics !== null && metrics.success_rate < parsedSuccessThreshold;
+  $: isMuted = mutedUntilEpochMs > Date.now();
+  $: showEscalatedAlert =
+    showSuccessAlert && lowSuccessStreak >= CONSECUTIVE_DEGRADATION_THRESHOLD && !isMuted;
 
   function formatDuration(durationMs: number | null): string {
     if (durationMs === null) return '-';
@@ -105,6 +112,12 @@
       const runsPayload = await runsRes.json();
       recentRuns = runsPayload.data;
       lastUpdatedAt = new Date().toLocaleString();
+
+      if (hasValidThreshold && metrics && metrics.success_rate < parsedSuccessThreshold) {
+        lowSuccessStreak += 1;
+      } else {
+        lowSuccessStreak = 0;
+      }
     } catch (e) {
       error = e instanceof Error ? e.message : 'Unknown error';
     } finally {
@@ -124,6 +137,7 @@
         successAlertThreshold?: string;
         autoRefreshEnabled?: boolean;
         autoRefreshSeconds?: string;
+        mutedUntilEpochMs?: number;
       };
 
       if (parsed.days) days = parsed.days;
@@ -131,6 +145,7 @@
       if (parsed.successAlertThreshold) successAlertThreshold = parsed.successAlertThreshold;
       if (typeof parsed.autoRefreshEnabled === 'boolean') autoRefreshEnabled = parsed.autoRefreshEnabled;
       if (parsed.autoRefreshSeconds) autoRefreshSeconds = parsed.autoRefreshSeconds;
+      if (typeof parsed.mutedUntilEpochMs === 'number') mutedUntilEpochMs = parsed.mutedUntilEpochMs;
     } catch {
       // Ignore malformed local storage values.
     }
@@ -145,8 +160,13 @@
       successAlertThreshold,
       autoRefreshEnabled,
       autoRefreshSeconds,
+      mutedUntilEpochMs,
     };
     window.localStorage.setItem(DASHBOARD_PREFS_KEY, JSON.stringify(payload));
+  }
+
+  function muteAlertsForTenMinutes() {
+    mutedUntilEpochMs = Date.now() + ALERT_MUTE_MINUTES * 60 * 1000;
   }
 
   function clearAutoRefreshTimer() {
@@ -241,7 +261,19 @@
     {#if showSuccessAlert}
       <div class="alert warning" role="status">
         Success rate {metrics.success_rate}% is below threshold {parsedSuccessThreshold}%.
+        {#if lowSuccessStreak > 1}
+          ({lowSuccessStreak} consecutive windows)
+        {/if}
       </div>
+    {/if}
+
+    {#if showEscalatedAlert}
+      <div class="alert critical" role="alert">
+        Sustained degradation detected ({lowSuccessStreak} consecutive windows below threshold).
+        <button class="btn" on:click={muteAlertsForTenMinutes}>Mute for 10 minutes</button>
+      </div>
+    {:else if isMuted && showSuccessAlert}
+      <p class="muted">Critical degradation alerts are muted until {new Date(mutedUntilEpochMs).toLocaleTimeString()}.</p>
     {/if}
 
     <div class="metrics-grid">
@@ -365,6 +397,18 @@
     background: #fff7dd;
     color: #8a6414;
     border-color: #e1dabd;
+  }
+
+  .alert.critical {
+    margin-top: 8px;
+    background: #fde8e8;
+    color: #a01818;
+    border-color: #f4b8b8;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    flex-wrap: wrap;
   }
 
   .metrics-grid {

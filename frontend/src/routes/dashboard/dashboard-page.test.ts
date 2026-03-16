@@ -268,4 +268,64 @@ describe('DashboardPage', () => {
     expect(allUrls.some((url) => url.includes('/api/v1/executions/metrics?days=14'))).toBe(true);
     expect(allUrls.some((url) => url.includes('/api/v1/executions/page?') && url.includes('status=running'))).toBe(true);
   });
+
+  it('escalates on sustained degradation and allows muting critical alert', async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes('/api/v1/executions/metrics')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            window_days: 30,
+            total_runs: 10,
+            completed_runs: 6,
+            failed_runs: 4,
+            cancelled_runs: 0,
+            running_runs: 0,
+            success_rate: 60,
+            avg_duration_ms: 1600,
+            failures_by_day: [{ day: '2026-03-16', count: 4 }],
+          }),
+        } as Response;
+      }
+      if (url.includes('/api/v1/executions/page')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            data: [],
+            pagination: {
+              limit: 8,
+              cursor: null,
+              next_cursor: null,
+              has_more: false,
+              total_count: 0,
+              sort_direction: 'desc',
+            },
+          }),
+        } as Response;
+      }
+      return {
+        ok: false,
+        status: 404,
+        json: async () => ({}),
+      } as Response;
+    });
+
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(DashboardPage);
+
+    const refreshButton = await screen.findByRole('button', { name: 'Refresh' });
+    await fireEvent.click(refreshButton);
+    await fireEvent.click(refreshButton);
+
+    await screen.findByText(/Sustained degradation detected/);
+
+    const muteButton = screen.getByRole('button', { name: 'Mute for 10 minutes' });
+    await fireEvent.click(muteButton);
+
+    await screen.findByText(/Critical degradation alerts are muted until/);
+  });
 });
