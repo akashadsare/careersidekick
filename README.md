@@ -161,6 +161,7 @@ Current frontend test scope includes Live Run Viewer coverage for:
 - pagination `total_count` and duration formatting
 - failed status update rollback behavior
 - successful status update refresh behavior
+- dashboard metrics and recent-runs rendering/error states
 
 Open:
 
