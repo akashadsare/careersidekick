@@ -316,3 +316,63 @@ class IncidentEventResponse(BaseModel):
     state: Literal['warning', 'critical', 'muted', 'recovered']
     message: str
     created_at: datetime
+
+
+# Job Discovery Models (M1.3)
+
+
+class JobDiscoveryQueryRequest(BaseModel):
+    """Request to start a job discovery search."""
+
+    title_query: str | None = Field(None, max_length=255, description="Job title to search for")
+    location: str | None = Field(None, max_length=255, description="Location (e.g., 'San Francisco, CA')")
+    remote_preference: str | None = Field(
+        None,
+        description="Remote preference: REMOTE, HYBRID, ONSITE, or null"
+    )
+
+
+class JobDiscoveryQueryResponse(BaseModel):
+    """Stored job discovery search query."""
+
+    id: int
+    candidate_id: int
+    title_query: str | None
+    location: str | None
+    remote_preference: str | None
+    created_at: datetime
+
+
+class JobDiscoveryRunResponse(BaseModel):
+    """Job discovery run execution details."""
+
+    id: int
+    query_id: int
+    run_status: str  # pending, running, completed, failed
+    jobs_discovered: int
+    jobs_imported: int
+    jobs_duplicate: int
+    jobs_failed: int
+    started_at: datetime | None
+    finished_at: datetime | None
+    duration_ms: int | None
+    error_message: str | None
+    created_at: datetime
+
+
+class JobDiscoverySummary(BaseModel):
+    """Summary of a completed discovery run."""
+
+    query_id: int
+    run_id: int
+    title_query: str | None
+    location: str | None
+    jobs_discovered: int
+    jobs_imported: int
+    jobs_duplicate: int
+    jobs_failed: int
+    duration_seconds: float | None
+    ats_detection_rate: float = Field(description="Percentage of jobs with successful ATS detection (0.0-1.0)")
+    top_ats_types: dict[str, int] = Field(description="Count of each ATS type found")
+    status: str
+    error_message: str | None = None

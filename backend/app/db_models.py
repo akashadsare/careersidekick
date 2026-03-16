@@ -110,6 +110,7 @@ class JobPosting(Base):
     ats_detection_confidence: Mapped[float | None] = mapped_column(nullable=True)  # 0.0–1.0
     is_closed: Mapped[bool] = mapped_column(nullable=False, default=False)
     extracted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)  # When job data was extracted from URL
+    discovery_run_id: Mapped[int | None] = mapped_column(ForeignKey('job_discovery_runs.id', ondelete='SET NULL'), nullable=True)  # M1.3: track discovery origin
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC))
 
@@ -164,3 +165,51 @@ class AlertIncident(Base):
     )
     message: Mapped[str] = mapped_column(Text, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+
+
+class DiscoveryRunStatus(str, Enum):
+    PENDING = 'pending'
+    RUNNING = 'running'
+    COMPLETED = 'completed'
+    FAILED = 'failed'
+
+
+class JobDiscoveryQuery(Base):
+    """Stores job search queries for discovery (M1.3)."""
+
+    __tablename__ = 'job_discovery_queries'
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    candidate_id: Mapped[int] = mapped_column(ForeignKey('candidate_profiles.id', ondelete='CASCADE'))
+    title_query: Mapped[str | None] = mapped_column(String(255), nullable=True)  # e.g., "Software Engineer"
+    location: Mapped[str | None] = mapped_column(String(255), nullable=True)  # e.g., "San Francisco, CA"
+    remote_preference: Mapped[str | None] = mapped_column(String(80), nullable=True)  # e.g., "REMOTE", "HYBRID", "ONSITE"
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+
+    runs: Mapped[list['JobDiscoveryRun']] = relationship(back_populates='query')
+
+
+class JobDiscoveryRun(Base):
+    """Tracks job discovery execution runs (M1.3)."""
+
+    __tablename__ = 'job_discovery_runs'
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    query_id: Mapped[int] = mapped_column(ForeignKey('job_discovery_queries.id', ondelete='CASCADE'))
+    run_status: Mapped[DiscoveryRunStatus] = mapped_column(
+        SAEnum(DiscoveryRunStatus, name='discovery_run_status', native_enum=False),
+        nullable=False,
+        default=DiscoveryRunStatus.PENDING
+    )
+    jobs_discovered: Mapped[int] = mapped_column(Integer, nullable=False, default=0)  # Total job URLs found
+    jobs_imported: Mapped[int] = mapped_column(Integer, nullable=False, default=0)  # Successfully imported via M1.2
+    jobs_duplicate: Mapped[int] = mapped_column(Integer, nullable=False, default=0)  # Filtered as duplicates
+    jobs_failed: Mapped[int] = mapped_column(Integer, nullable=False, default=0)  # Failed to import
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    duration_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+
+    query: Mapped[JobDiscoveryQuery] = relationship(back_populates='runs')
+    imported_jobs: Mapped[list['JobPosting']] = relationship('JobPosting', foreign_keys='JobPosting.discovery_run_id')

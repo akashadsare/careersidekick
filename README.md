@@ -109,6 +109,7 @@ Current revisions:
 - `0003_alert_incidents` adds persisted dashboard incident timeline events
 - `0004_resume_and_profile_expansion` adds resume upload, candidate profile fields, and answer library (M1.1)
 - `0005_job_import_extension` adds job import fields: `location`, `description`, `source_url`, `is_closed`, `extracted_at`, `ats_detection_confidence` (M1.2)
+- `0006_job_discovery_tracking` adds job discovery queries, runs, and tracking fields for M1.3
 
 Create a new migration after schema changes:
 
@@ -169,6 +170,24 @@ See [PORTAL_FAILURE_MODES.md](./PORTAL_FAILURE_MODES.md) for documented failure 
     - `422` — Could not extract title/company from page
     - `409` — Job already imported from this source_url
 
+**Job Discovery (M1.3):**
+- `POST /api/v1/jobs/discover?candidate_id={id}` — Discover jobs from LinkedIn Jobs and Greenhouse public boards
+  - **Request:** `{ "title_query": "Software Engineer", "location": "San Francisco, CA", "remote_preference": "REMOTE" }`
+  - **Response:** `JobDiscoverySummary` with discovery metrics:
+    - `jobs_discovered` — Total URLs found
+    - `jobs_imported` — Successfully imported via M1.2
+    - `jobs_duplicate` — Filtered as duplicates
+    - `jobs_failed` — Failed to import
+    - `duration_seconds` — Total discovery time
+    - `ats_detection_rate` — % of jobs with detected ATS type (target: ≥70%)
+    - `top_ats_types` — Count of each ATS type found
+  - **SLO:** Completes within 3 minutes (180s)
+
+**Discovery History & Results:**
+- `GET /api/v1/jobs/discovery-runs/{run_id}` — Get discovery run execution details
+- `GET /api/v1/jobs/discovered?run_id={id}&skip=0&limit=20` — List discovered jobs from a run
+- `GET /api/v1/candidates/{candidate_id}/discovery-history` — Get candidate's discovery run history
+
 **Job Listing & Management:**
 - `GET /api/v1/jobs` — List imported jobs (supports filters: `?ats_type=greenhouse&is_closed=false`, pagination: `?skip=0&limit=20`)
 - `GET /api/v1/jobs/{job_id}` — Retrieve job details
@@ -187,8 +206,7 @@ See [PORTAL_FAILURE_MODES.md](./PORTAL_FAILURE_MODES.md) for documented failure 
 - `GET /api/v1/executions/{id}` — Retrieve execution details
 - `PATCH /api/v1/executions/{id}/status` — Update execution status with state transitions
 
-**Jobs & Drafts:**
-- `GET /api/v1/jobs`, `POST /api/v1/jobs` — Job posting management (legacy endpoint for direct creation)
+**Drafts:**
 - `GET /api/v1/drafts`, `GET /api/v1/drafts/{id}`, `PATCH /api/v1/drafts/{id}` — Application draft management
 - `GET /api/v1/drafts/{id}/runs` — Retrieve submission runs for a draft
 
