@@ -68,6 +68,7 @@
   $: isMuted = mutedUntilEpochMs > Date.now();
   $: showEscalatedAlert =
     showSuccessAlert && lowSuccessStreak >= CONSECUTIVE_DEGRADATION_THRESHOLD && !isMuted;
+  $: hasActiveIncidentFilters = incidentStateFilter !== '' || days !== DEFAULT_WINDOW_DAYS;
   $: oldestLoadedIncidentAt =
     incidentTimeline.length > 0
       ? new Date(incidentTimeline[incidentTimeline.length - 1].createdAt).toLocaleString()
@@ -637,7 +638,13 @@
             {/each}
           </div>
         {:else if incidentTimeline.length === 0}
-          <p class="muted">No alert transitions yet.</p>
+          <p class="muted">
+            {#if hasActiveIncidentFilters}
+              No incidents match the current timeline filters.
+            {:else}
+              No alert transitions yet.
+            {/if}
+          </p>
         {:else}
           <div class="timeline-list">
             {#each incidentTimeline as event}
