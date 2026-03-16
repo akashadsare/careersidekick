@@ -199,6 +199,73 @@ class CandidateAnswersListResponse(BaseModel):
     library_questions: list[AnswerLibraryQuestionResponse]
 
 
+# Job Import Models (M1.2)
+
+
+class JobExtractedData(BaseModel):
+    """Data extracted from job posting URL."""
+
+    title: str = Field(..., min_length=1, max_length=255)
+    company_name: str = Field(..., min_length=1, max_length=255)
+    location: str | None = None
+    description: str | None = None
+    apply_url: str | None = None
+    ats_type: str | None = Field(
+        None,
+        description="Detected ATS type: greenhouse, lever, workday, ashby, or null if unknown"
+    )
+    ats_detection_confidence: float | None = Field(
+        None,
+        ge=0.0,
+        le=1.0,
+        description="Confidence score for ATS detection (0.0-1.0)"
+    )
+    is_closed: bool = Field(False, description="Whether job posting is closed")
+
+
+class JobImportRequest(BaseModel):
+    """Request to import a job posting from a URL."""
+
+    source_url: str = Field(..., min_length=10, description="Full URL to the job posting")
+
+
+class JobPostingResponse(BaseModel):
+    """Response model for a job posting."""
+
+    id: int
+    title: str
+    company_name: str
+    location: str | None
+    description: str | None
+    apply_url: str | None
+    source_url: str | None
+    ats_type: str | None
+    ats_detection_confidence: float | None
+    is_closed: bool
+    extracted_at: datetime | None
+    created_at: datetime
+    updated_at: datetime
+
+
+class JobImportResponse(BaseModel):
+    """Response from job import endpoint."""
+
+    job: JobPostingResponse
+    is_closed: bool = Field(
+        False,
+        description="True if job posting is closed; user should be warned"
+    )
+    ats_type: str | None = Field(
+        None,
+        description="Detected ATS type if available"
+    )
+    ats_detection_confidence: float | None = Field(
+        None,
+        description="Confidence score (0.0-1.0)"
+    )
+    extraction_errors: list[str] = Field(default_factory=list, description="Any warnings or partial extraction issues")
+
+
 class SubmissionRunStatusUpdateRequest(BaseModel):
     run_status: Literal['running', 'completed', 'failed', 'cancelled']
 

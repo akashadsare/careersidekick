@@ -102,9 +102,16 @@ class JobPosting(Base):
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     title: Mapped[str] = mapped_column(String(255), nullable=False)
     company_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    location: Mapped[str | None] = mapped_column(String(255), nullable=True)  # e.g., "San Francisco, CA" or "Remote"
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)  # Full job description text
     apply_url: Mapped[str | None] = mapped_column(Text, nullable=True)
-    ats_type: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    source_url: Mapped[str | None] = mapped_column(Text, nullable=True)  # URL e.g., "https://boards.greenhouse.io/..."
+    ats_type: Mapped[str | None] = mapped_column(String(80), nullable=True)  # e.g., "greenhouse", "lever", "workday", "ashby"
+    ats_detection_confidence: Mapped[float | None] = mapped_column(nullable=True)  # 0.0–1.0
+    is_closed: Mapped[bool] = mapped_column(nullable=False, default=False)
+    extracted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)  # When job data was extracted from URL
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC))
 
     drafts: Mapped[list['ApplicationDraft']] = relationship(back_populates='job')
 

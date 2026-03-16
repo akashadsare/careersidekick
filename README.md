@@ -108,6 +108,7 @@ Current revisions:
 - `0002_submission_run_timing` adds `started_at`, `finished_at`, `duration_ms` on submission runs
 - `0003_alert_incidents` adds persisted dashboard incident timeline events
 - `0004_resume_and_profile_expansion` adds resume upload, candidate profile fields, and answer library (M1.1)
+- `0005_job_import_extension` adds job import fields: `location`, `description`, `source_url`, `is_closed`, `extracted_at`, `ats_detection_confidence` (M1.2)
 
 Create a new migration after schema changes:
 
@@ -153,6 +154,26 @@ See [PORTAL_FAILURE_MODES.md](./PORTAL_FAILURE_MODES.md) for documented failure 
 - `GET /api/v1/candidates/{candidate_id}/answers` — Get all candidate answers to library questions
 - `POST /api/v1/candidates/{candidate_id}/answers` — Add/update candidate answer to a library question
 
+### Phase 1: Job Import & Discovery (M1.2 - M1.3)
+
+**Job Import by URL (M1.2):**
+- `POST /api/v1/jobs/import-by-url` — Import job posting from URL with automatic ATS detection
+  - **Request:** `{ "source_url": "https://boards.greenhouse.io/..." }`
+  - **Response:** Job with extracted fields: `title`, `company_name`, `location`, `description`, `apply_url`, `ats_type`, `ats_detection_confidence`
+  - **Closed Job Detection:** Returned `{ "is_closed": true, "extraction_errors": [...] }`
+  - **ATS Detection:** Supports Greenhouse, Lever, Workday, Ashby, LinkedIn Jobs
+    - Returns `ats_detection_confidence` (0.0-1.0) for validation
+    - Deduplicates by `source_url` on repeated imports
+  - **Errors:**
+    - `400` — Invalid URL format
+    - `422` — Could not extract title/company from page
+    - `409` — Job already imported from this source_url
+
+**Job Listing & Management:**
+- `GET /api/v1/jobs` — List imported jobs (supports filters: `?ats_type=greenhouse&is_closed=false`, pagination: `?skip=0&limit=20`)
+- `GET /api/v1/jobs/{job_id}` — Retrieve job details
+- `DELETE /api/v1/jobs/{job_id}` — Delete job posting
+
 ### Phase 1: Core Workflow
 
 **Submissions & Execution:**
@@ -167,7 +188,7 @@ See [PORTAL_FAILURE_MODES.md](./PORTAL_FAILURE_MODES.md) for documented failure 
 - `PATCH /api/v1/executions/{id}/status` — Update execution status with state transitions
 
 **Jobs & Drafts:**
-- `GET /api/v1/jobs`, `POST /api/v1/jobs` — Job posting management
+- `GET /api/v1/jobs`, `POST /api/v1/jobs` — Job posting management (legacy endpoint for direct creation)
 - `GET /api/v1/drafts`, `GET /api/v1/drafts/{id}`, `PATCH /api/v1/drafts/{id}` — Application draft management
 - `GET /api/v1/drafts/{id}/runs` — Retrieve submission runs for a draft
 
