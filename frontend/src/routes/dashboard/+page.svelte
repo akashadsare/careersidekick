@@ -69,6 +69,8 @@
   $: showEscalatedAlert =
     showSuccessAlert && lowSuccessStreak >= CONSECUTIVE_DEGRADATION_THRESHOLD && !isMuted;
   $: hasActiveIncidentFilters = incidentStateFilter !== '' || days !== DEFAULT_WINDOW_DAYS;
+  $: activeIncidentFilterCount =
+    (incidentStateFilter !== '' ? 1 : 0) + (days !== DEFAULT_WINDOW_DAYS ? 1 : 0);
   $: oldestLoadedIncidentAt =
     incidentTimeline.length > 0
       ? new Date(incidentTimeline[incidentTimeline.length - 1].createdAt).toLocaleString()
@@ -606,7 +608,9 @@
           <h3>Incident Timeline</h3>
           <div class="filter-chip-row" aria-label="Active incident filters">
             {#if hasActiveIncidentFilters}
-              <button class="btn btn-inline" on:click={clearAllIncidentFilters}>Clear all incident filters</button>
+              <button class="btn btn-inline" on:click={clearAllIncidentFilters}>
+                Clear all ({activeIncidentFilterCount})
+              </button>
             {/if}
             {#if days !== DEFAULT_WINDOW_DAYS}
               <button

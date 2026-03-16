@@ -584,7 +584,7 @@ describe('DashboardPage', () => {
 
     render(DashboardPage);
 
-    const clearAllButton = await screen.findByRole('button', { name: 'Clear all incident filters' });
+    const clearAllButton = await screen.findByRole('button', { name: 'Clear all (2)' });
     await fireEvent.click(clearAllButton);
 
     await waitFor(() => {
@@ -592,7 +592,7 @@ describe('DashboardPage', () => {
     });
     await screen.findByText('30d window');
     await waitFor(() => {
-      expect(screen.queryByRole('button', { name: 'Clear all incident filters' })).toBeNull();
+      expect(screen.queryByRole('button', { name: /Clear all \(/ })).toBeNull();
     });
 
     const metricCalls = fetchMock.mock.calls
