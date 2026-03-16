@@ -263,6 +263,8 @@ describe('DashboardPage', () => {
     render(DashboardPage);
 
     await screen.findByText('Success rate 50% is below threshold 90%.');
+    await screen.findByText('14d window');
+    await screen.findByText('state: critical');
 
     const autoRefreshCheckbox = screen.getByRole('checkbox');
     expect(autoRefreshCheckbox).toBeTruthy();

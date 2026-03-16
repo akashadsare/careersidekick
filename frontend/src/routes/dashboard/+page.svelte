@@ -71,6 +71,10 @@
     incidentTimeline.length > 0
       ? new Date(incidentTimeline[incidentTimeline.length - 1].createdAt).toLocaleString()
       : '';
+  $: incidentFilterChips = [
+    `${days}d window`,
+    incidentStateFilter ? `state: ${incidentStateFilter}` : 'all states',
+  ];
 
   function formatDuration(durationMs: number | null): string {
     if (durationMs === null) return '-';
@@ -583,7 +587,14 @@
       </div>
 
       <div class="card pane">
-        <h3>Incident Timeline</h3>
+        <div class="pane-heading">
+          <h3>Incident Timeline</h3>
+          <div class="filter-chip-row" aria-label="Active incident filters">
+            {#each incidentFilterChips as chip}
+              <span class="filter-chip">{chip}</span>
+            {/each}
+          </div>
+        </div>
         {#if hiddenFilteredIncidentCount > 0}
           <p class="muted incident-note" role="status">
             {hiddenFilteredIncidentCount}
@@ -715,6 +726,31 @@
     display: grid;
     gap: 8px;
     margin-top: 8px;
+  }
+
+  .pane-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .filter-chip-row {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+
+  .filter-chip {
+    display: inline-flex;
+    align-items: center;
+    padding: 4px 8px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: var(--surface);
+    font-size: 12px;
+    color: var(--muted);
   }
 
   .timeline-row {
