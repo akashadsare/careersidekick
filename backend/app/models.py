@@ -376,3 +376,72 @@ class JobDiscoverySummary(BaseModel):
     top_ats_types: dict[str, int] = Field(description="Count of each ATS type found")
     status: str
     error_message: str | None = None
+
+
+# Fit Scoring Models (M1.4)
+
+
+class FitScoreDimensions(BaseModel):
+    """Individual dimension scores for a job fit."""
+
+    title_match_score: int = Field(..., ge=0, le=100, description="Title relevance (0-100)")
+    skills_match_score: int = Field(..., ge=0, le=100, description="Skills overlap (0-100)")
+    seniority_match_score: int = Field(..., ge=0, le=100, description="Experience level match (0-100)")
+    location_match_score: int = Field(..., ge=0, le=100, description="Location preference match (0-100)")
+    salary_match_score: int = Field(..., ge=0, le=100, description="Salary expectation match (0-100)")
+    work_auth_match_score: int = Field(..., ge=0, le=100, description="Work authorization compatibility (0-100)")
+
+
+class HardBlockers(BaseModel):
+    """Hard blocker flags for a job."""
+
+    work_auth: bool = Field(False, description="Work authorization mismatch")
+    location: bool = Field(False, description="Location incompatibility")
+    seniority: bool = Field(False, description="Seniority level mismatch")
+
+    def has_any_blocker(self) -> bool:
+        """Check if any hard blocker is triggered."""
+        return self.work_auth or self.location or self.seniority
+
+
+class FitScoreCalculateRequest(BaseModel):
+    """Request to calculate fit score for a candidate-job pair."""
+
+    candidate_id: int = Field(..., description="Candidate profile ID")
+    job_id: int = Field(..., description="Job posting ID")
+
+
+class FitScoreResponse(BaseModel):
+    """Response with a job's fit score against a candidate."""
+
+    id: int
+    candidate_id: int
+    job_id: int
+    
+    # Overall score and recommendation
+    overall_score: int = Field(..., ge=0, le=100)
+    recommendation: Literal['apply', 'review', 'skip']
+    
+    # Dimension scores
+    dimensions: FitScoreDimensions
+    
+    # Hard blockers
+    hard_blockers: HardBlockers
+    
+    # Explanation
+    explanation: str | None = Field(None, description="Human-readable score summary")
+    reasoning_json: dict | None = Field(None, description="Detailed reasoning per dimension")
+    
+    # Metadata
+    scoring_model: str = Field(default='llm-v1')
+    scored_at: datetime
+
+
+class FitScoreBatchResponse(BaseModel):
+    """Response with multiple fit scores for a candidate across jobs."""
+
+    candidate_id: int
+    total_jobs_scored: int
+    jobs_to_apply: list[FitScoreResponse] = Field(description="Score 75-100, recommendation=apply")
+    jobs_to_review: list[FitScoreResponse] = Field(description="Score 50-74, recommendation=review")
+    jobs_to_skip: list[FitScoreResponse] = Field(description="Score <50, recommendation=skip")

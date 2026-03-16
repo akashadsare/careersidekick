@@ -110,6 +110,7 @@ Current revisions:
 - `0004_resume_and_profile_expansion` adds resume upload, candidate profile fields, and answer library (M1.1)
 - `0005_job_import_extension` adds job import fields: `location`, `description`, `source_url`, `is_closed`, `extracted_at`, `ats_detection_confidence` (M1.2)
 - `0006_job_discovery_tracking` adds job discovery queries, runs, and tracking fields for M1.3
+- `0006_fit_score_table` creates fit_scores table with dimension scores, hard blocker flags, and reasoning (M1.4)
 
 Create a new migration after schema changes:
 
@@ -192,6 +193,35 @@ See [PORTAL_FAILURE_MODES.md](./PORTAL_FAILURE_MODES.md) for documented failure 
 - `GET /api/v1/jobs` — List imported jobs (supports filters: `?ats_type=greenhouse&is_closed=false`, pagination: `?skip=0&limit=20`)
 - `GET /api/v1/jobs/{job_id}` — Retrieve job details
 - `DELETE /api/v1/jobs/{job_id}` — Delete job posting
+
+### Phase 1: Fit Scoring (M1.4)
+
+**Fit Scoring:**
+- `POST /api/v1/fit-scores` — Calculate fit score for a candidate-job pair
+  - **Request:** `{ "candidate_id": 1, "job_id": 5 }`
+  - **Response:** `FitScoreResponse` with:
+    - `overall_score` (0-100) and `recommendation` (apply/review/skip)
+    - `dimensions`: title_match, skills_match, seniority_match, location_match, salary_match, work_auth_match (each 0-100)
+    - `hard_blockers`: work_auth, location, seniority (boolean flags for disqualifying factors)
+    - `explanation`: Human-readable summary (e.g., "✅ Strong Match (82/100) - Recommended to Apply")
+    - `reasoning_json`: Detailed scoring breakdown per dimension
+  - **SLO:** Completes within 60 seconds (cached on repeat requests)
+  - **Hard Blockers Detected:**
+    - Work Authorization Mismatch: Job "no sponsorship" + candidate needs sponsorship
+    - Location Incompatibility: Candidate wants remote, job is onsite-only (or vice versa)
+    - Seniority Mismatch: Extreme gap (e.g., job requires 20+ years, candidate has 2 years)
+
+**Batch Scoring:**
+- `GET /api/v1/fit-scores/candidate/{candidate_id}?limit=50&min_score=50&recommendation=apply` — Get all fit scores for a candidate
+  - **Response:** `FitScoreBatchResponse` grouped by recommendation:
+    - `jobs_to_apply`: Score 75-100
+    - `jobs_to_review`: Score 50-74
+    - `jobs_to_skip`: Score <50
+  - **Supports filtering:** by `min_score` (0-100), `recommendation` (apply/review/skip)
+
+**Score Management:**
+- `GET /api/v1/fit-scores/{fit_score_id}` — Get specific fit score with full reasoning
+- `DELETE /api/v1/fit-scores/{fit_score_id}` — Delete cached score (will recalculate on next request)
 
 ### Phase 1: Core Workflow
 

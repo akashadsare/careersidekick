@@ -213,3 +213,42 @@ class JobDiscoveryRun(Base):
 
     query: Mapped[JobDiscoveryQuery] = relationship(back_populates='runs')
     imported_jobs: Mapped[list['JobPosting']] = relationship('JobPosting', foreign_keys='JobPosting.discovery_run_id')
+
+
+class FitScore(Base):
+    """Job fit scoring results (M1.4)."""
+
+    __tablename__ = 'fit_scores'
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    candidate_id: Mapped[int] = mapped_column(ForeignKey('candidate_profiles.id', ondelete='CASCADE'))
+    job_id: Mapped[int] = mapped_column(ForeignKey('job_postings.id', ondelete='CASCADE'))
+    
+    # Overall score: 0-100
+    overall_score: Mapped[int] = mapped_column(Integer, nullable=False)  # 0-100
+    recommendation: Mapped[str] = mapped_column(String(20), nullable=False)  # 'apply', 'review', 'skip'
+    
+    # Dimension scores (0-100)
+    title_match_score: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    skills_match_score: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    seniority_match_score: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    location_match_score: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    salary_match_score: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    work_auth_match_score: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    
+    # Hard blocker flags
+    hard_blocker_work_auth: Mapped[bool] = mapped_column(nullable=False, default=False)
+    hard_blocker_location: Mapped[bool] = mapped_column(nullable=False, default=False)
+    hard_blocker_seniority: Mapped[bool] = mapped_column(nullable=False, default=False)
+    
+    # Explanation and reasoning
+    explanation: Mapped[str | None] = mapped_column(Text, nullable=True)  # Human-readable summary
+    reasoning_json: Mapped[dict | None] = mapped_column(JSONB, nullable=True)  # Detailed reasoning per dimension
+    
+    # Scoring metadata
+    scoring_model: Mapped[str] = mapped_column(String(80), nullable=False, default='llm-v1')  # e.g., 'llm-v1', 'rules-v1'
+    scored_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+
+    candidate: Mapped[CandidateProfile] = relationship(foreign_keys='FitScore.candidate_id')
+    job: Mapped[JobPosting] = relationship(foreign_keys='FitScore.job_id')
