@@ -63,6 +63,8 @@
   let incidentLastRefreshedAt = '';
   let incidentRecencyTicker: ReturnType<typeof setInterval> | null = null;
   let incidentRecencyNowEpochMs = Date.now();
+  let incidentTimelineListEl: HTMLDivElement | null = null;
+  let activeIncidentRowIndex = -1;
 
   $: parsedSuccessThreshold = Number(successAlertThreshold);
   $: hasValidThreshold = Number.isFinite(parsedSuccessThreshold) && parsedSuccessThreshold >= 0;
@@ -492,6 +494,56 @@
     }, 30_000);
   }
 
+  function getTimelineRows(): HTMLDivElement[] {
+    if (incidentTimelineListEl === null) return [];
+    return Array.from(incidentTimelineListEl.querySelectorAll<HTMLDivElement>('.timeline-row[data-incident-row]'));
+  }
+
+  function focusIncidentTimelineRow(index: number): void {
+    const rows = getTimelineRows();
+    if (rows.length === 0) return;
+
+    const boundedIndex = Math.max(0, Math.min(index, rows.length - 1));
+    activeIncidentRowIndex = boundedIndex;
+    rows[boundedIndex].focus();
+  }
+
+  function handleIncidentTimelineFocus() {
+    if (document.activeElement === incidentTimelineListEl) {
+      focusIncidentTimelineRow(0);
+    }
+  }
+
+  function handleIncidentTimelineKeydown(event: KeyboardEvent) {
+    const rows = getTimelineRows();
+    if (rows.length === 0) return;
+
+    const activeRowIndex = rows.findIndex((row) => row === document.activeElement);
+
+    if (event.key === 'ArrowDown') {
+      event.preventDefault();
+      focusIncidentTimelineRow(activeRowIndex >= 0 ? activeRowIndex + 1 : 0);
+      return;
+    }
+
+    if (event.key === 'ArrowUp') {
+      event.preventDefault();
+      focusIncidentTimelineRow(activeRowIndex >= 0 ? activeRowIndex - 1 : 0);
+      return;
+    }
+
+    if (event.key === 'Home' || event.key.toLowerCase() === 'n') {
+      event.preventDefault();
+      focusIncidentTimelineRow(0);
+      return;
+    }
+
+    if (event.key === 'End') {
+      event.preventDefault();
+      focusIncidentTimelineRow(rows.length - 1);
+    }
+  }
+
   $: if (prefsReady) savePrefs();
   $: if (prefsReady) restartAutoRefreshTimer();
 
@@ -721,9 +773,28 @@
             {/if}
           </p>
         {:else}
-          <div class="timeline-list">
-            {#each incidentTimeline as event}
-              <div class="timeline-row">
+          <div
+            class="timeline-list"
+            role="listbox"
+            aria-label="Incident timeline. Use Arrow keys to navigate, Home for newest, End for oldest, and N for newest."
+            tabindex="0"
+            bind:this={incidentTimelineListEl}
+            on:focus={handleIncidentTimelineFocus}
+            on:keydown={handleIncidentTimelineKeydown}
+          >
+            {#each incidentTimeline as event, index}
+              <div
+                class="timeline-row"
+                data-incident-row
+                role="option"
+                aria-posinset={index + 1}
+                aria-setsize={incidentTimeline.length}
+                aria-selected={index === activeIncidentRowIndex}
+                tabindex="-1"
+                on:focus={() => {
+                  activeIncidentRowIndex = index;
+                }}
+              >
                 <span class="timeline-time">{event.at}</span>
                 <span class="timeline-state {event.state}">{event.state}</span>
                 <span>{event.message}</span>
@@ -895,6 +966,12 @@
     border-radius: 8px;
     background: var(--surface-soft);
     font-size: 13px;
+  }
+
+  .timeline-list:focus-visible,
+  .timeline-row:focus-visible {
+    outline: 2px solid var(--text);
+    outline-offset: 2px;
   }
 
   .timeline-footer {

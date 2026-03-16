@@ -1177,4 +1177,109 @@ describe('DashboardPage', () => {
       .filter((url) => url.includes('/api/v1/executions/incidents?'));
     expect(incidentCalls.some((url) => !url.includes('state='))).toBe(true);
   });
+
+  it('supports keyboard navigation in the incident timeline', async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes('/api/v1/executions/incidents')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => [
+            {
+              id: 3,
+              state: 'recovered',
+              message: 'Newest incident',
+              created_at: '2026-03-16T10:00:00Z',
+            },
+            {
+              id: 2,
+              state: 'warning',
+              message: 'Middle incident',
+              created_at: '2026-03-16T09:30:00Z',
+            },
+            {
+              id: 1,
+              state: 'recovered',
+              message: 'Oldest incident',
+              created_at: '2026-03-16T09:00:00Z',
+            },
+          ],
+        } as Response;
+      }
+      if (url.includes('/api/v1/executions/metrics')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            window_days: 30,
+            total_runs: 10,
+            completed_runs: 10,
+            failed_runs: 0,
+            cancelled_runs: 0,
+            running_runs: 0,
+            success_rate: 100,
+            avg_duration_ms: 2000,
+            failures_by_day: [],
+          }),
+        } as Response;
+      }
+      if (url.includes('/api/v1/executions/page')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            data: [],
+            pagination: {
+              limit: 8,
+              cursor: null,
+              next_cursor: null,
+              has_more: false,
+              total_count: 0,
+              sort_direction: 'desc',
+            },
+          }),
+        } as Response;
+      }
+
+      return {
+        ok: false,
+        status: 404,
+        json: async () => ({}),
+      } as Response;
+    });
+
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(DashboardPage);
+
+    const timeline = await screen.findByRole('listbox', {
+      name: /Incident timeline\. Use Arrow keys to navigate/i,
+    });
+
+    (timeline as HTMLElement).focus();
+    await waitFor(() => {
+      expect((document.activeElement as HTMLElement).textContent).toContain('Newest incident');
+    });
+
+    await fireEvent.keyDown(document.activeElement as HTMLElement, { key: 'ArrowDown' });
+    await waitFor(() => {
+      expect((document.activeElement as HTMLElement).textContent).toContain('Middle incident');
+    });
+
+    await fireEvent.keyDown(document.activeElement as HTMLElement, { key: 'End' });
+    await waitFor(() => {
+      expect((document.activeElement as HTMLElement).textContent).toContain('Oldest incident');
+    });
+
+    await fireEvent.keyDown(document.activeElement as HTMLElement, { key: 'Home' });
+    await waitFor(() => {
+      expect((document.activeElement as HTMLElement).textContent).toContain('Newest incident');
+    });
+
+    await fireEvent.keyDown(document.activeElement as HTMLElement, { key: 'n' });
+    await waitFor(() => {
+      expect((document.activeElement as HTMLElement).textContent).toContain('Newest incident');
+    });
+  });
 });
