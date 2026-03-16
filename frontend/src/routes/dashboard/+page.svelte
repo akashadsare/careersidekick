@@ -609,7 +609,11 @@
               <button class="btn btn-inline" on:click={clearAllIncidentFilters}>Clear all incident filters</button>
             {/if}
             {#if days !== DEFAULT_WINDOW_DAYS}
-              <button class="filter-chip filter-chip-button" on:click={resetIncidentWindow}>
+              <button
+                class="filter-chip filter-chip-button"
+                on:click={resetIncidentWindow}
+                title="Reset incident window to default (30d)"
+              >
                 <span>{days}d window</span>
                 <span class="filter-chip-dismiss" aria-hidden="true">x</span>
                 <span class="sr-only">Reset incident window to default</span>
@@ -618,7 +622,11 @@
               <span class="filter-chip">{days}d window</span>
             {/if}
             {#if incidentStateFilter}
-              <button class="filter-chip filter-chip-button" on:click={clearIncidentStateFilter}>
+              <button
+                class="filter-chip filter-chip-button"
+                on:click={clearIncidentStateFilter}
+                title="Clear incident state filter"
+              >
                 <span>state: {incidentStateFilter}</span>
                 <span class="filter-chip-dismiss" aria-hidden="true">x</span>
                 <span class="sr-only">Clear incident state filter</span>
