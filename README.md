@@ -148,6 +148,15 @@ npm install
 npm run dev
 ```
 
+From repository root, shortcut scripts are also available:
+
+```bash
+npm run dev
+npm run preview
+npm run check
+npm run test
+```
+
 Frontend validation:
 
 ```bash
@@ -213,6 +222,13 @@ cd backend
 source .venv/bin/activate
 ruff check .
 pytest -q
+```
+
+From repository root:
+
+```bash
+npm run backend:lint
+npm run backend:test
 ```
 
 Current test scope includes:
