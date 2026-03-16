@@ -242,6 +242,13 @@
     void loadDashboard();
   }
 
+  function clearAllIncidentFilters() {
+    days = DEFAULT_WINDOW_DAYS;
+    incidentStateFilter = '';
+    hiddenFilteredIncidentCount = 0;
+    void loadDashboard();
+  }
+
   function showHiddenIncidents() {
     clearIncidentStateFilter();
   }
@@ -598,6 +605,9 @@
         <div class="pane-heading">
           <h3>Incident Timeline</h3>
           <div class="filter-chip-row" aria-label="Active incident filters">
+            {#if hasActiveIncidentFilters}
+              <button class="btn btn-inline" on:click={clearAllIncidentFilters}>Clear all incident filters</button>
+            {/if}
             {#if days !== DEFAULT_WINDOW_DAYS}
               <button class="filter-chip filter-chip-button" on:click={resetIncidentWindow}>
                 <span>{days}d window</span>
