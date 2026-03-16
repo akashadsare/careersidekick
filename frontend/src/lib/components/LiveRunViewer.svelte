@@ -116,6 +116,39 @@
     }
   }
 
+  function initializeFromUrlQuery() {
+    if (typeof window === 'undefined') return null;
+
+    const params = new URLSearchParams(window.location.search);
+    const status = params.get('status');
+    const draftId = params.get('draft_id');
+    const limit = params.get('limit');
+    const sort = params.get('sort_direction');
+    const runId = params.get('run_id');
+
+    if (status && ['running', 'completed', 'failed', 'cancelled'].includes(status)) {
+      filterStatus = status;
+    }
+    if (draftId) {
+      filterDraftId = draftId;
+    }
+    if (limit) {
+      historyLimit = limit;
+    }
+    if (sort === 'asc' || sort === 'desc') {
+      sortDirection = sort;
+    }
+
+    if (runId) {
+      const parsed = Number(runId);
+      if (Number.isFinite(parsed) && parsed > 0) {
+        return parsed;
+      }
+    }
+
+    return null;
+  }
+
   async function loadRunHistory() {
     runsLoading = true;
     try {
@@ -282,8 +315,12 @@
   }
 
   onMount(async () => {
+    const initialRunId = initializeFromUrlQuery();
     await loadRunHistory();
     await loadMetrics();
+    if (initialRunId !== null) {
+      await loadRunDetail(initialRunId);
+    }
   });
 </script>
 

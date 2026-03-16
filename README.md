@@ -197,6 +197,8 @@ Implemented now:
 8. Live execution metrics panel (success rate, average duration, failures by day + trend chart)
 9. Backend unit tests for execution timing transition logic (`pytest`)
 
+Dashboard recent-run rows now deep-link into Live Run Viewer with URL query params (`status`, `run_id`, `limit`, `sort_direction`) so operators land directly on filtered history and selected run detail.
+
 Next hard milestones:
 
 1. Add real package generation from profile + answer library

@@ -262,7 +262,7 @@
               <span>Created</span>
             </div>
             {#each recentRuns as run}
-              <a class="row run-row" href="/live-run">
+              <a class="row run-row" href={`/live-run?status=${run.run_status}&run_id=${run.id}`}>
                 <span>#{run.id}</span>
                 <span><span class={statusClass(run.run_status)}>{run.run_status}</span></span>
                 <span>{formatDuration(run.duration_ms)}</span>

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/svelte';
+import { fireEvent, render, screen, waitFor } from '@testing-library/svelte';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import LiveRunViewer from './LiveRunViewer.svelte';
@@ -6,6 +6,7 @@ import LiveRunViewer from './LiveRunViewer.svelte';
 describe('LiveRunViewer', () => {
   beforeEach(() => {
     localStorage.clear();
+    window.history.replaceState({}, '', '/live-run');
     vi.restoreAllMocks();
   });
 
@@ -328,5 +329,107 @@ describe('LiveRunViewer', () => {
     await screen.findByText('100%');
     expect(runButton.textContent).toContain('completed');
     expect(screen.queryByText('Status update failed: 500')).toBeNull();
+  });
+
+  it('initializes filters and selected run from URL query parameters', async () => {
+    window.history.replaceState({}, '', '/live-run?status=failed&run_id=22&limit=10&sort_direction=asc');
+
+    const metricsPayload = {
+      window_days: 30,
+      total_runs: 2,
+      completed_runs: 1,
+      failed_runs: 1,
+      cancelled_runs: 0,
+      running_runs: 0,
+      success_rate: 50,
+      avg_duration_ms: 1800,
+      failures_by_day: [{ day: '2026-03-16', count: 1 }],
+    };
+
+    const pagePayload = {
+      data: [
+        {
+          id: 22,
+          draft_id: 6,
+          tinyfish_run_id: 'tf-22',
+          run_status: 'failed',
+          started_at: '2026-03-16T08:00:00Z',
+          finished_at: '2026-03-16T08:00:01.800Z',
+          duration_ms: 1800,
+          streaming_url: null,
+          error_message: 'blocked',
+          created_at: '2026-03-16T08:00:00Z',
+        },
+      ],
+      pagination: {
+        limit: 10,
+        cursor: null,
+        next_cursor: null,
+        has_more: false,
+        total_count: 1,
+        sort_direction: 'asc',
+      },
+    };
+
+    const detailPayload = {
+      ...pagePayload.data[0],
+      result_json: null,
+    };
+
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+
+      if (url.includes('/api/v1/executions/page')) {
+        return {
+          ok: true,
+          json: async () => pagePayload,
+          status: 200,
+        } as Response;
+      }
+
+      if (url.includes('/api/v1/executions/metrics')) {
+        return {
+          ok: true,
+          json: async () => metricsPayload,
+          status: 200,
+        } as Response;
+      }
+
+      if (url.endsWith('/api/v1/executions/22')) {
+        return {
+          ok: true,
+          json: async () => detailPayload,
+          status: 200,
+        } as Response;
+      }
+
+      return {
+        ok: false,
+        status: 404,
+        json: async () => ({}),
+      } as Response;
+    });
+
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(LiveRunViewer);
+
+    await screen.findByText(/Run 22/);
+    await screen.findByText('50%');
+
+    const calledUrls = fetchMock.mock.calls.map((call) => String(call[0]));
+    expect(
+      calledUrls.some(
+        (url) =>
+          url.includes('/api/v1/executions/page') &&
+          url.includes('status=failed') &&
+          url.includes('limit=10') &&
+          url.includes('sort_direction=asc'),
+      ),
+    ).toBe(true);
+    await waitFor(() => {
+      const urls = fetchMock.mock.calls.map((call) => String(call[0]));
+      expect(urls.some((url) => url.includes('/api/v1/executions/22'))).toBe(true);
+    });
   });
 });
