@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/svelte';
+import { fireEvent, render, screen } from '@testing-library/svelte';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import DashboardPage from './+page.svelte';
@@ -79,6 +79,75 @@ describe('DashboardPage', () => {
     await screen.findByText('66.67%');
     await screen.findByText('#101');
     await screen.findByText('Failures Trend');
+    await screen.findByText('Success rate 66.67% is below threshold 80%.');
+  });
+
+  it('applies selected status filter when refreshing recent runs', async () => {
+    const metricsPayload = {
+      window_days: 30,
+      total_runs: 4,
+      completed_runs: 3,
+      failed_runs: 1,
+      cancelled_runs: 0,
+      running_runs: 0,
+      success_rate: 75,
+      avg_duration_ms: 2000,
+      failures_by_day: [{ day: '2026-03-16', count: 1 }],
+    };
+
+    const runsPayload = {
+      data: [],
+      pagination: {
+        limit: 8,
+        cursor: null,
+        next_cursor: null,
+        has_more: false,
+        total_count: 0,
+        sort_direction: 'desc',
+      },
+    };
+
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+
+      if (url.includes('/api/v1/executions/metrics')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => metricsPayload,
+        } as Response;
+      }
+
+      if (url.includes('/api/v1/executions/page')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => runsPayload,
+        } as Response;
+      }
+
+      return {
+        ok: false,
+        status: 404,
+        json: async () => ({}),
+      } as Response;
+    });
+
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(DashboardPage);
+
+    await screen.findByText('Operations Dashboard');
+    const select = screen.getByRole('combobox');
+    await fireEvent.change(select, { target: { value: 'failed' } });
+
+    const refreshButton = await screen.findByRole('button', { name: 'Refresh' });
+    await fireEvent.click(refreshButton);
+
+    const pageCalls = fetchMock.mock.calls
+      .map((call) => String(call[0]))
+      .filter((url) => url.includes('/api/v1/executions/page'));
+    expect(pageCalls.some((url) => url.includes('status=failed'))).toBe(true);
   });
 
   it('renders error message when metrics request fails', async () => {

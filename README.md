@@ -188,7 +188,7 @@ This is a planning-to-prototype scaffold, not production yet.
 Implemented now:
 
 1. Backend SSE proxy to TinyFish `/run-sse`
-2. Operations dashboard route for run health and failure trends
+2. Operations dashboard route for run health, failure trends, status filter, and success-rate threshold alerts
 3. Approval panel UI with editable package preview
 4. Live run viewer with progress log + streaming iframe + final result
 5. Postgres persistence for candidates, jobs, drafts, and submission runs

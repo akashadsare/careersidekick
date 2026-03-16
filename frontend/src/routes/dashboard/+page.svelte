@@ -27,8 +27,15 @@
   let metrics: Metrics | null = null;
   let recentRuns: RunRow[] = [];
   let days = '30';
+  let statusFilter: '' | 'running' | 'completed' | 'failed' | 'cancelled' = '';
+  let successAlertThreshold = '80';
   let loading = false;
   let error = '';
+
+  $: parsedSuccessThreshold = Number(successAlertThreshold);
+  $: hasValidThreshold = Number.isFinite(parsedSuccessThreshold) && parsedSuccessThreshold >= 0;
+  $: showSuccessAlert =
+    hasValidThreshold && metrics !== null && metrics.success_rate < parsedSuccessThreshold;
 
   function formatDuration(durationMs: number | null): string {
     if (durationMs === null) return '-';
@@ -71,9 +78,14 @@
     error = '';
 
     try {
+      const runsParams = new URLSearchParams({ limit: '8', sort_direction: 'desc' });
+      if (statusFilter) {
+        runsParams.set('status', statusFilter);
+      }
+
       const [metricsRes, runsRes] = await Promise.all([
         fetch(`${API_BASE}/api/v1/executions/metrics?days=${days}`),
-        fetch(`${API_BASE}/api/v1/executions/page?limit=8&sort_direction=desc`),
+        fetch(`${API_BASE}/api/v1/executions/page?${runsParams.toString()}`),
       ]);
 
       if (!metricsRes.ok) {
@@ -109,6 +121,20 @@
         Window (days)
         <input class="input" bind:value={days} placeholder="30" />
       </label>
+      <label>
+        Status filter
+        <select class="select" bind:value={statusFilter}>
+          <option value="">all</option>
+          <option value="running">running</option>
+          <option value="completed">completed</option>
+          <option value="failed">failed</option>
+          <option value="cancelled">cancelled</option>
+        </select>
+      </label>
+      <label>
+        Alert threshold (%)
+        <input class="input" bind:value={successAlertThreshold} placeholder="80" />
+      </label>
       <button class="btn" on:click={loadDashboard} disabled={loading}>
         {loading ? 'Refreshing...' : 'Refresh'}
       </button>
@@ -121,6 +147,12 @@
   {/if}
 
   {#if metrics}
+    {#if showSuccessAlert}
+      <div class="alert warning" role="status">
+        Success rate {metrics.success_rate}% is below threshold {parsedSuccessThreshold}%.
+      </div>
+    {/if}
+
     <div class="metrics-grid">
       <div class="tile card">
         <p><strong>Total runs</strong></p>
@@ -225,6 +257,19 @@
     gap: 8px;
     align-items: end;
     flex-wrap: wrap;
+  }
+
+  .alert {
+    margin-top: 12px;
+    padding: 10px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+  }
+
+  .alert.warning {
+    background: #fff7dd;
+    color: #8a6414;
+    border-color: #e1dabd;
   }
 
   .metrics-grid {
