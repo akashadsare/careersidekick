@@ -287,6 +287,83 @@ describe('DashboardPage', () => {
     ).toBe(true);
   });
 
+  it('clears incident state filter from the header chip', async () => {
+    localStorage.setItem(
+      'careersidekick_dashboard_prefs',
+      JSON.stringify({
+        days: '14',
+        incidentStateFilter: 'critical',
+      }),
+    );
+
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes('/api/v1/executions/metrics')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            window_days: 14,
+            total_runs: 2,
+            completed_runs: 2,
+            failed_runs: 0,
+            cancelled_runs: 0,
+            running_runs: 0,
+            success_rate: 100,
+            avg_duration_ms: 1200,
+            failures_by_day: [],
+          }),
+        } as Response;
+      }
+      if (url.includes('/api/v1/executions/page')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            data: [],
+            pagination: {
+              limit: 8,
+              cursor: null,
+              next_cursor: null,
+              has_more: false,
+              total_count: 0,
+              sort_direction: 'desc',
+            },
+          }),
+        } as Response;
+      }
+      if (url.includes('/api/v1/executions/incidents')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => [],
+        } as Response;
+      }
+      return {
+        ok: false,
+        status: 404,
+        json: async () => ({}),
+      } as Response;
+    });
+
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(DashboardPage);
+
+    const clearChipButton = await screen.findByRole('button', { name: /Clear incident state filter/ });
+    await fireEvent.click(clearChipButton);
+
+    await waitFor(() => {
+      expect(screen.queryByText('state: critical')).toBeNull();
+    });
+
+    const incidentCalls = fetchMock.mock.calls
+      .map((call) => String(call[0]))
+      .filter((url) => url.includes('/api/v1/executions/incidents?'));
+    expect(incidentCalls.some((url) => url.includes('state=critical'))).toBe(true);
+    expect(incidentCalls.some((url) => url.includes('days=14') && !url.includes('state='))).toBe(true);
+  });
+
   it('escalates on sustained degradation and allows muting critical alert', async () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input);

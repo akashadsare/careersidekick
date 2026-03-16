@@ -71,10 +71,6 @@
     incidentTimeline.length > 0
       ? new Date(incidentTimeline[incidentTimeline.length - 1].createdAt).toLocaleString()
       : '';
-  $: incidentFilterChips = [
-    `${days}d window`,
-    incidentStateFilter ? `state: ${incidentStateFilter}` : 'all states',
-  ];
 
   function formatDuration(durationMs: number | null): string {
     if (durationMs === null) return '-';
@@ -232,10 +228,14 @@
     void loadIncidents();
   }
 
-  function showHiddenIncidents() {
+  function clearIncidentStateFilter() {
     incidentStateFilter = '';
     hiddenFilteredIncidentCount = 0;
     void loadIncidents();
+  }
+
+  function showHiddenIncidents() {
+    clearIncidentStateFilter();
   }
 
   async function persistIncident(state: IncidentEvent['state'], message: string): Promise<void> {
@@ -590,9 +590,16 @@
         <div class="pane-heading">
           <h3>Incident Timeline</h3>
           <div class="filter-chip-row" aria-label="Active incident filters">
-            {#each incidentFilterChips as chip}
-              <span class="filter-chip">{chip}</span>
-            {/each}
+            <span class="filter-chip">{days}d window</span>
+            {#if incidentStateFilter}
+              <button class="filter-chip filter-chip-button" on:click={clearIncidentStateFilter}>
+                <span>state: {incidentStateFilter}</span>
+                <span class="filter-chip-dismiss" aria-hidden="true">x</span>
+                <span class="sr-only">Clear incident state filter</span>
+              </button>
+            {:else}
+              <span class="filter-chip">all states</span>
+            {/if}
           </div>
         </div>
         {#if hiddenFilteredIncidentCount > 0}
@@ -751,6 +758,29 @@
     background: var(--surface);
     font-size: 12px;
     color: var(--muted);
+  }
+
+  .filter-chip-button {
+    cursor: pointer;
+    gap: 6px;
+  }
+
+  .filter-chip-dismiss {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--text);
+  }
+
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
   }
 
   .timeline-row {
