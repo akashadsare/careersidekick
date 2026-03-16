@@ -572,6 +572,13 @@ describe('DashboardPage', () => {
     await screen.findByText(/Showing/);
     await screen.findByText(/Oldest loaded:/);
 
+    const resetButton = await screen.findByRole('button', { name: 'Reset timeline' });
+    await fireEvent.click(resetButton);
+
+    await waitFor(() => {
+      expect(screen.queryByText('Incident 20')).toBeNull();
+    });
+
     const incidentCalls = fetchMock.mock.calls
       .map((call) => String(call[0]))
       .filter((url) => url.includes('/api/v1/executions/incidents?'));

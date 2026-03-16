@@ -198,6 +198,10 @@
     void loadIncidents({ append: true, cursor: oldestIncidentId });
   }
 
+  function resetIncidentTimeline() {
+    void loadIncidents();
+  }
+
   async function persistIncident(state: IncidentEvent['state'], message: string): Promise<void> {
     const response = await fetch(`${API_BASE}/api/v1/executions/incidents`, {
       method: 'POST',
@@ -553,6 +557,10 @@
             <button class="btn" on:click={loadOlderIncidents} disabled={incidentLoadingMore}>
               {incidentLoadingMore ? 'Loading...' : 'Load older incidents'}
             </button>
+          {/if}
+
+          {#if incidentTimeline.length > INCIDENT_PAGE_SIZE}
+            <button class="btn" on:click={resetIncidentTimeline}>Reset timeline</button>
           {/if}
 
           <p class="muted timeline-footer">
