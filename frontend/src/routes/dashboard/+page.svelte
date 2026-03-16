@@ -14,6 +14,7 @@
     state: 'warning' | 'critical' | 'muted' | 'recovered';
     message: string;
     at: string;
+    createdAt: string;
   };
 
   type Metrics = {
@@ -64,6 +65,10 @@
   $: isMuted = mutedUntilEpochMs > Date.now();
   $: showEscalatedAlert =
     showSuccessAlert && lowSuccessStreak >= CONSECUTIVE_DEGRADATION_THRESHOLD && !isMuted;
+  $: oldestLoadedIncidentAt =
+    incidentTimeline.length > 0
+      ? new Date(incidentTimeline[incidentTimeline.length - 1].createdAt).toLocaleString()
+      : '';
 
   function formatDuration(durationMs: number | null): string {
     if (durationMs === null) return '-';
@@ -157,6 +162,7 @@
         state: event.state,
         message: event.message,
         at: new Date(event.created_at).toLocaleTimeString(),
+        createdAt: event.created_at,
       }));
 
       incidentHasMore = payload.length === INCIDENT_PAGE_SIZE;
@@ -215,6 +221,7 @@
       state: payload.state,
       message: payload.message,
       at: new Date(payload.created_at).toLocaleTimeString(),
+      createdAt: payload.created_at,
     });
   }
 
@@ -226,7 +233,8 @@
       try {
         await persistIncident('recovered', message);
       } catch {
-        appendIncident({ state: 'recovered', message, at: new Date().toLocaleTimeString() });
+        const now = new Date().toISOString();
+        appendIncident({ state: 'recovered', message, at: new Date(now).toLocaleTimeString(), createdAt: now });
       }
       previousAlertState = 'normal';
       return;
@@ -250,7 +258,8 @@
       try {
         await persistIncident(state, message);
       } catch {
-        appendIncident({ state, message, at: new Date().toLocaleTimeString() });
+        const now = new Date().toISOString();
+        appendIncident({ state, message, at: new Date(now).toLocaleTimeString(), createdAt: now });
       }
     }
 
@@ -545,6 +554,13 @@
               {incidentLoadingMore ? 'Loading...' : 'Load older incidents'}
             </button>
           {/if}
+
+          <p class="muted timeline-footer">
+            Showing {incidentTimeline.length} incidents
+            {#if oldestLoadedIncidentAt}
+              · Oldest loaded: {oldestLoadedIncidentAt}
+            {/if}
+          </p>
         {/if}
       </div>
 
@@ -640,6 +656,11 @@
     border-radius: 8px;
     background: var(--surface-soft);
     font-size: 13px;
+  }
+
+  .timeline-footer {
+    margin-top: 10px;
+    font-size: 12px;
   }
 
   .timeline-time {

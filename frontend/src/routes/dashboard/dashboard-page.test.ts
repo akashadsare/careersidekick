@@ -569,6 +569,8 @@ describe('DashboardPage', () => {
     await fireEvent.click(loadOlderButton);
 
     await screen.findByText('Incident 20');
+    await screen.findByText(/Showing/);
+    await screen.findByText(/Oldest loaded:/);
 
     const incidentCalls = fetchMock.mock.calls
       .map((call) => String(call[0]))
