@@ -738,6 +738,7 @@ describe('DashboardPage', () => {
 
     await screen.findByText('Operations Dashboard');
     await screen.findByText(/Success rate 90% is below threshold 95%/);
+    await screen.findByText(/1 new incident is hidden by the current timeline filters/);
     await waitFor(() => {
       expect(screen.queryByText('Success rate dropped below threshold.')).toBeNull();
     });

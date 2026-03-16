@@ -56,6 +56,7 @@
   let previousAlertState: AlertState = 'normal';
   let incidentTimeline: IncidentEvent[] = [];
   let incidentHasMore = false;
+  let hiddenFilteredIncidentCount = 0;
   let incidentLoading = false;
   let incidentLoadingMore = false;
 
@@ -153,6 +154,7 @@
       incidentLoadingMore = true;
     } else {
       incidentLoading = true;
+      hiddenFilteredIncidentCount = 0;
     }
 
     try {
@@ -252,6 +254,8 @@
         at: new Date(payload.created_at).toLocaleTimeString(),
         createdAt: payload.created_at,
       });
+    } else {
+      hiddenFilteredIncidentCount += 1;
     }
   }
 
@@ -266,6 +270,8 @@
         const now = new Date().toISOString();
         if (incidentMatchesActiveFilters('recovered', now)) {
           appendIncident({ state: 'recovered', message, at: new Date(now).toLocaleTimeString(), createdAt: now });
+        } else {
+          hiddenFilteredIncidentCount += 1;
         }
       }
       previousAlertState = 'normal';
@@ -293,6 +299,8 @@
         const now = new Date().toISOString();
         if (incidentMatchesActiveFilters(state, now)) {
           appendIncident({ state, message, at: new Date(now).toLocaleTimeString(), createdAt: now });
+        } else {
+          hiddenFilteredIncidentCount += 1;
         }
       }
     }
@@ -570,6 +578,12 @@
 
       <div class="card pane">
         <h3>Incident Timeline</h3>
+        {#if hiddenFilteredIncidentCount > 0}
+          <p class="muted incident-note" role="status">
+            {hiddenFilteredIncidentCount}
+            {hiddenFilteredIncidentCount === 1 ? ' new incident is' : ' new incidents are'} hidden by the current timeline filters.
+          </p>
+        {/if}
         {#if incidentLoading && incidentTimeline.length === 0}
           <div class="timeline-list" aria-label="Incident timeline loading">
             {#each Array.from({ length: 3 }) as _, index}
@@ -709,6 +723,11 @@
   .timeline-footer {
     margin-top: 10px;
     font-size: 12px;
+  }
+
+  .incident-note {
+    margin: 8px 0 10px;
+    color: #8a6414;
   }
 
   .timeline-row.skeleton {
