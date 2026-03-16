@@ -228,6 +228,12 @@
     void loadIncidents();
   }
 
+  function showHiddenIncidents() {
+    incidentStateFilter = '';
+    hiddenFilteredIncidentCount = 0;
+    void loadIncidents();
+  }
+
   async function persistIncident(state: IncidentEvent['state'], message: string): Promise<void> {
     const response = await fetch(`${API_BASE}/api/v1/executions/incidents`, {
       method: 'POST',
@@ -582,6 +588,9 @@
           <p class="muted incident-note" role="status">
             {hiddenFilteredIncidentCount}
             {hiddenFilteredIncidentCount === 1 ? ' new incident is' : ' new incidents are'} hidden by the current timeline filters.
+            {#if incidentStateFilter}
+              <button class="btn btn-inline" on:click={showHiddenIncidents}>Show hidden incidents</button>
+            {/if}
           </p>
         {/if}
         {#if incidentLoading && incidentTimeline.length === 0}
@@ -728,6 +737,13 @@
   .incident-note {
     margin: 8px 0 10px;
     color: #8a6414;
+  }
+
+  .btn-inline {
+    margin-left: 8px;
+    padding: 4px 8px;
+    font-size: 12px;
+    vertical-align: middle;
   }
 
   .timeline-row.skeleton {
