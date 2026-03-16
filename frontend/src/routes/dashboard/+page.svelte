@@ -5,6 +5,7 @@
   const DASHBOARD_PREFS_KEY = 'careersidekick_dashboard_prefs';
   const CONSECUTIVE_DEGRADATION_THRESHOLD = 3;
   const ALERT_MUTE_MINUTES = 10;
+  const DEFAULT_WINDOW_DAYS = '30';
   const INCIDENT_PAGE_SIZE = 20;
 
   type AlertState = 'normal' | 'warning' | 'critical' | 'muted';
@@ -40,7 +41,7 @@
 
   let metrics: Metrics | null = null;
   let recentRuns: RunRow[] = [];
-  let days = '30';
+  let days = DEFAULT_WINDOW_DAYS;
   let statusFilter: '' | 'running' | 'completed' | 'failed' | 'cancelled' = '';
   let incidentStateFilter: '' | 'warning' | 'critical' | 'muted' | 'recovered' = '';
   let successAlertThreshold = '80';
@@ -232,6 +233,12 @@
     incidentStateFilter = '';
     hiddenFilteredIncidentCount = 0;
     void loadIncidents();
+  }
+
+  function resetIncidentWindow() {
+    days = DEFAULT_WINDOW_DAYS;
+    hiddenFilteredIncidentCount = 0;
+    void loadDashboard();
   }
 
   function showHiddenIncidents() {
@@ -590,7 +597,15 @@
         <div class="pane-heading">
           <h3>Incident Timeline</h3>
           <div class="filter-chip-row" aria-label="Active incident filters">
-            <span class="filter-chip">{days}d window</span>
+            {#if days !== DEFAULT_WINDOW_DAYS}
+              <button class="filter-chip filter-chip-button" on:click={resetIncidentWindow}>
+                <span>{days}d window</span>
+                <span class="filter-chip-dismiss" aria-hidden="true">x</span>
+                <span class="sr-only">Reset incident window to default</span>
+              </button>
+            {:else}
+              <span class="filter-chip">{days}d window</span>
+            {/if}
             {#if incidentStateFilter}
               <button class="filter-chip filter-chip-button" on:click={clearIncidentStateFilter}>
                 <span>state: {incidentStateFilter}</span>
